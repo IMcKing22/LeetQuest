@@ -65,5 +65,5 @@ def print_question(slug: str):
     print()
 
 if __name__ == "__main__":
-    slug = "two-sum"  # change this to any problem slug
+    slug = "Longest-Common-Prefix"  # change this to any problem slug
     print_question(slug)

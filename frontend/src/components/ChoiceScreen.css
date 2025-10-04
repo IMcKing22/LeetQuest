@@ -1,0 +1,125 @@
+.choice-screen {
+  min-height: 100vh;
+  background: #1a1a1a;
+  color: #e2e8f0;
+  padding: 2rem;
+}
+
+.choice-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 2rem;
+  min-height: 60vh;
+}
+
+.story-sidebar {
+  display: flex;
+  align-items: flex-start;
+}
+
+.story-box {
+  background: #2d2d2d;
+  border: 1px solid #404040;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  width: 100%;
+}
+
+.story-box h3 {
+  color: #667eea;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+.story-box p {
+  color: #cbd5e1;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.choice-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.choice-box {
+  background: #2d2d2d;
+  border: 1px solid #404040;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px;
+}
+
+.choice-box h2 {
+  color: #667eea;
+  margin-bottom: 2rem;
+  font-size: 1.8rem;
+  text-align: center;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.choice-button {
+  background: #3a3a3a;
+  border: 2px solid #404040;
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  text-align: left;
+  width: 100%;
+}
+
+.choice-button:hover {
+  background: #4a4a4a;
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+}
+
+.choice-icon {
+  font-size: 2rem;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.choice-content h3 {
+  color: #e2e8f0;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+}
+
+.choice-content p {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .choice-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .story-sidebar {
+    order: 2;
+  }
+  
+  .choice-main {
+    order: 1;
+  }
+}

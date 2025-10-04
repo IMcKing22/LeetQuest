@@ -1,0 +1,62 @@
+.topic-selection {
+  min-height: 100vh;
+  background: #1a1a1a;
+  color: #e2e8f0;
+  padding: 2rem;
+}
+
+.topics-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.topic-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  margin-bottom: 0.5rem;
+  background: #2d2d2d;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.topic-card:hover {
+  background: #3a3a3a;
+  border-color: #667eea;
+  transform: translateY(-1px);
+}
+
+.topic-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.topic-name {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.topic-progress {
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.progress-bar {
+  width: 200px;
+  height: 8px;
+  background: #404040;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
