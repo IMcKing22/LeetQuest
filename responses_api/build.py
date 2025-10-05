@@ -1,45 +1,82 @@
+# build.py
+from __future__ import annotations
+
 from dotenv import load_dotenv
 from openai import OpenAI
-import intermediary_interpreter
-import diffusion_build
+
+# Your existing modules; leave them as-is
+import responses_api.intermediary_interpreter
+import responses_api.diffusion_build
 
 load_dotenv()
 client = OpenAI()
 
-res1 = client.responses.create(
-  model="gpt-5",
-  instructions="""You are a storyteller that generates decision based adventures that have continuous dual branching paths.
-                  Upon receiving user input, you will generate a context providing story that you will output to the user. Along with each contextual helper, you will provide two paths for the user to follow on thir adventure (i.e. walk into a dark, eerie forest or through a deep, damp swamp). To walk down either of these paths, you will also provide the user with two LeetCode problems, one for each path. 
-                  When the user picks a problem, you will generate another story and problem based on whether they've solved it or not,
-                  And the genre of the leetcode problem.""",
-  input="Prompt the user to choose what type of coding problem they'd like to tackle first and give examples of all common problem types (arrays, queue, dp, trees, graphs, etc)"
+
+INTRO_INSTRUCTIONS = (
+    "You are a storyteller for a choose-your-own-adventure about coding.\n"
+    "Write an intro scene themed around the given TOPIC and end by inviting the player to choose a path.\n"
+    "Do NOT invent coding problems here; later screens will attach specific problems."
 )
 
-print(res1.output_text)
-# Call the intermediary to generate a prompt for the artist
-art_prompt = intermediary_interpreter.receive_input(res1.output_text)
-print(art_prompt)
-# Call the artist
-diffusion_build.generate_image(art_prompt)
+CONTINUE_INSTRUCTIONS = (
+    "You are a storyteller that generates decision-based adventures with continuous dual branching.\n"
+    "Given the player's input, continue the narrative and end with two clear path options.\n"
+    "Do NOT invent coding problems; the app will attach them separately."
+)
 
-while input("Continue? (Y/N): ") == "Y":
-  user_text = input("Choose your leetcode problem: ")
-  res2 = client.responses.create(
-      model="gpt-5",
-      instructions="""You are a storyteller that generates decision based adventures that have continuous dual branching paths.
-                  Upon receiving user input, you generate a story along with two LeetCode problems, one for each path.
-                  When the user picks a problem, you will generate another story and problem based on whether they've solved it or not,
-                  And the genre of the leetcode problem.""",
-      previous_response_id=res1.id,
-      store=True,
-      input=user_text
-  )
-  res1 = res2
-  print(res2.output_text)
-  
+def start_story(topic: str, *, generate_art: bool = False) -> dict:
+    res = client.responses.create(
+        model="gpt-5",
+        instructions=INTRO_INSTRUCTIONS,
+        input=f"TOPIC: {topic}. Write ~120–200 words."
+    )
 
+    story_text = getattr(res, "output_text", "")
+    # conversation is optional; fall back to response id
+    conversation_id = getattr(getattr(res, "conversation", None), "id", None) or getattr(res, "id", None)
+    response_id = getattr(res, "id", None)
 
+    # (Optional) image generation – keep wrapped so errors don’t break the request
+    if generate_art and story_text:
+        try:
+            try:
+                # package-relative if inside module
+                from . import intermediary_interpreter, diffusion_build
+            except Exception:
+                import intermediary_interpreter, diffusion_build
+            art_prompt = intermediary_interpreter.receive_input(story_text)
+            diffusion_build.generate_image(art_prompt)
+        except Exception:
+            pass
 
+    return {
+        "story_text": story_text,
+        "conversation_id": conversation_id,   # may be None
+        "response_id": response_id,           # always present
+    }
 
+def continue_story(conversation_id: str | None = None,
+                   response_id: str | None = None,
+                   user_input: str = "") -> dict:
+    kwargs = {}
+    # prefer conversation when available; otherwise chain off the previous response id
+    if conversation_id:
+        kwargs["conversation"] = conversation_id
+    elif response_id:
+        kwargs["previous_response_id"] = response_id
 
-#print(res2.output_text)
+    res = client.responses.create(
+        model="gpt-5",
+        instructions=CONTINUE_INSTRUCTIONS,
+        input=user_input or "Continue.",
+        **kwargs
+    )
+
+    return {
+        "story_text": getattr(res, "output_text", ""),
+        "conversation_id": getattr(getattr(res, "conversation", None), "id", None) or getattr(res, "id", None),
+        "response_id": getattr(res, "id", None),
+    }
+
+if __name__ == "__main__":
+    print(start_story("Arrays & Hashing"))

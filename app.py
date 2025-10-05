@@ -3,7 +3,11 @@ from flask_cors import CORS
 import os
 import requests
 import time
-from leetscrape import GetQuestion, GetQuestionsList
+from uuid import uuid4
+
+from responses_api.build import start_story
+from responses_api.bridge import path_bridge, description_former_bridge, description_latter_bridge, journey_bridge
+#from leetscrape import GetQuestion, GetQuestionsList
 
 def get_problem_signature(problem_slug, language):
     """Get proper function signature for each problem"""
@@ -208,6 +212,64 @@ CORS(app, resources={
 
 # Global cache for problems list
 problems_cache = None
+
+SESSIONS = {} # temp session memory store
+# ============= AI Integration Routes =============
+@app.post("/api/start")
+def api_start():
+    topic = (request.get_json(silent=True) or {}).get("topic", "coding challenges")
+    res = start_story(topic, generate_art=False)
+
+    sid = str(uuid4())
+    SESSIONS[sid] = {
+        "topic": topic,
+        "base_text": res["story_text"],
+        "conversation_id": res.get("conversation_id"),
+        "response_id": res.get("response_id"),
+    }
+
+    return jsonify({
+        "sessionId": sid,
+        "conversationId": res.get("conversation_id"),
+        "responseId": res.get("response_id"),
+        "story": res["story_text"],
+    })
+
+@app.post("/api/choices")
+def api_choices():
+    j = request.get_json(silent=True) or {}
+    sess = SESSIONS.get(j.get("sessionId"))
+    if not sess:
+        return jsonify({"error": "session not found"}), 404
+    base = sess["base_text"]; topic = sess["topic"]
+    former_title = path_bridge(f"{topic} approach A").strip()
+    latter_title = path_bridge(f"{topic} approach B").strip()
+    former_desc  = description_former_bridge(base).strip()
+    latter_desc  = description_latter_bridge(base).strip()
+    journey      = journey_bridge(base).strip()
+    return jsonify({"journey": journey, "former": {"title": former_title, "description": former_desc},
+                    "latter": {"title": latter_title, "description": latter_desc}})
+
+# example continue route
+@app.post("/api/continue")
+def api_continue():
+    j = request.get_json(silent=True) or {}
+    sid = j.get("sessionId")
+    user_input = j.get("input", "Continue.")
+    sess = SESSIONS.get(sid)
+    if not sess:
+        return jsonify({"error":"session not found"}), 404
+
+    from responses_api.build import continue_story
+    out = continue_story(
+        conversation_id=sess.get("conversation_id"),
+        response_id=sess.get("response_id"),
+        user_input=user_input
+    )
+    # update stored ids for next turn
+    sess["conversation_id"] = out.get("conversation_id") or sess.get("conversation_id")
+    sess["response_id"] = out.get("response_id") or sess.get("response_id")
+    return jsonify(out)
 
 # ============== LeetCode API Routes ==============
 
