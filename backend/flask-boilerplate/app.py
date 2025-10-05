@@ -2,12 +2,13 @@
 # Imports
 #----------------------------------------------------------------------------#
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 # from flask.ext.sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from forms import *
 import os
+from api import api as api_blueprint
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -36,6 +37,9 @@ def login_required(test):
             return redirect(url_for('login'))
     return wrap
 '''
+
+app.register_blueprint(api_blueprint, url_prefix='/judge')
+
 #----------------------------------------------------------------------------#
 # Controllers.
 #----------------------------------------------------------------------------#
@@ -45,6 +49,11 @@ def login_required(test):
 def home():
     return render_template('pages/placeholder.home.html')
 
+# Ensure this is placed after `app` is created.
+@app.get("/index")
+def index():
+    # Redirect to login or render an index template if you have one.
+    return redirect(url_for("home"))
 
 @app.route('/about')
 def about():
@@ -68,8 +77,8 @@ def forgot():
     form = ForgotForm(request.form)
     return render_template('forms/forgot.html', form=form)
 
-# Error handlers.
 
+# Error handlers.
 
 @app.errorhandler(500)
 def internal_error(error):
@@ -80,6 +89,7 @@ def internal_error(error):
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('errors/404.html'), 404
+
 
 if not app.debug:
     file_handler = FileHandler('error.log')
