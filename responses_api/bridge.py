@@ -1,6 +1,6 @@
 from openai import OpenAI
-import intermediary_interpreter
-import diffusion_build
+import responses_api.intermediary_interpreter
+import responses_api.diffusion_build
 
 client = OpenAI()
 
