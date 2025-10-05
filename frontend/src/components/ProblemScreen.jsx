@@ -27,6 +27,7 @@ const ProblemScreen = () => {
   const [chatBoxOpen, setChatBoxOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
+  const [storyContext, setStoryContext] = useState({ conversationId: null, responseId: null, story: '' });
 
   console.log('ProblemScreen rendered with:', { topic, choice, loading, error, problemData });
 
@@ -183,15 +184,30 @@ You can return the answer in any order.`,
   };
 
   // Function to generate appropriate starter code based on problem type
-  const getStarterCode = (language, problemTitle) => {
-    const title = (problemTitle || 'Two Sum').toLowerCase();
+  const getStarterCode = (language, problemData) => {
+    console.log('getStarterCode called with:', { language, problemData });
+    
+    // Use function signature from backend if available
+    if (problemData?.functionSignature) {
+      console.log('Using function signature from backend:', problemData.functionSignature);
+      return problemData.functionSignature;
+    }
+    
+    // Fallback to title-based generation
+    const title = (problemData?.title || 'Two Sum').toLowerCase();
+    console.log('Using title-based generation for:', title);
     
     if (title.includes('two sum')) {
-      if (language === 'python') return `from typing import List
+      console.log('Matched two sum case for title:', title);
+      if (language === 'python') {
+        const twoSumCode = `from typing import List
 
 def solution(nums: List[int], target: int) -> List[int]:
     # Your code here
     pass`;
+        console.log('Returning two sum Python code:', twoSumCode);
+        return twoSumCode;
+      }
       if (language === 'javascript') return `function solution(nums, target) {
     // Your code here
     
@@ -237,6 +253,101 @@ public:
     int solution(vector<int>& height) {
         // Your code here
         return 0;
+    }
+};`;
+    }
+    
+    if (title.includes('remove') && title.includes('duplicates')) {
+      console.log('Matched remove duplicates case for title:', title);
+      if (language === 'python') {
+        const removeDupCode = `from typing import List
+
+def solution(nums: List[int]) -> int:
+    # Your code here
+    pass`;
+        console.log('Returning remove duplicates Python code:', removeDupCode);
+        return removeDupCode;
+      }
+      if (language === 'javascript') return `function solution(nums) {
+    // Your code here
+    
+}`;
+      if (language === 'java') return `class Solution {
+    public int solution(int[] nums) {
+        // Your code here
+        return 0;
+    }
+}`;
+      if (language === 'cpp') return `class Solution {
+public:
+    int solution(vector<int>& nums) {
+        // Your code here
+        return 0;
+    }
+};`;
+      if (language === 'c') return `int solution(int* nums, int numsSize) {
+    // Your code here
+    return 0;
+}`;
+    }
+    
+    if (title.includes('linked') && title.includes('cycle')) {
+      console.log('Matched linked list cycle case for title:', title);
+      if (language === 'python') {
+        const linkedListCycleCode = `# Definition for singly-linked list.
+# class ListNode:
+#     def __init__(self, x):
+#         self.val = x
+#         self.next = None
+
+def solution(head):
+    # Your code here
+    pass`;
+        console.log('Returning linked list cycle Python code:', linkedListCycleCode);
+        return linkedListCycleCode;
+      }
+      if (language === 'javascript') return `/**
+ * Definition for singly-linked list.
+ * function ListNode(val) {
+ *     this.val = val;
+ *     this.next = null;
+ * }
+ */
+
+function solution(head) {
+    // Your code here
+    
+}`;
+      if (language === 'java') return `/**
+ * Definition for singly-linked list.
+ * class ListNode {
+ *     int val;
+ *     ListNode next;
+ *     ListNode(int x) {
+ *         val = x;
+ *         next = null;
+ *     }
+ * }
+ */
+class Solution {
+    public boolean solution(ListNode head) {
+        // Your code here
+        return false;
+    }
+}`;
+      if (language === 'cpp') return `/**
+ * Definition for singly-linked list.
+ * struct ListNode {
+ *     int val;
+ *     ListNode *next;
+ *     ListNode(int x) : val(x), next(NULL) {}
+ * };
+ */
+class Solution {
+public:
+    bool solution(ListNode *head) {
+        // Your code here
+        return false;
     }
 };`;
     }
@@ -313,9 +424,13 @@ public:
     }
     
     // Default starter code
-    if (language === 'python') return `def solution():
+    if (language === 'python') {
+      const defaultCode = `def solution():
     # Your code here
     pass`;
+      console.log('Returning default Python code for title:', title);
+      return defaultCode;
+    }
     if (language === 'javascript') return `function solution() {
     // Your code here
     
@@ -337,6 +452,10 @@ public:
     // Your code here
     return 0;
 }`;
+    
+    // This should never be reached, but just in case
+    console.log('Reached end of getStarterCode - this should not happen');
+    return `// Your code here`;
   };
 
   // Programming language configurations
@@ -370,70 +489,237 @@ public:
 
   // Initialize code with starter code when language changes or problem changes
   useEffect(() => {
-    try {
-      const starterCode = getStarterCode(selectedLanguage, displayProblem?.title || 'Two Sum');
-      setCode(starterCode);
-      console.log('Set starter code:', starterCode);
-    } catch (err) {
-      console.error('Error setting starter code:', err);
-      setCode('def solution():\n    # Your code here\n    pass');
+    // Only set starter code when we have real problem data
+    if (problemData) {
+      try {
+        const starterCode = getStarterCode(selectedLanguage, problemData);
+        setCode(starterCode);
+        console.log('Set starter code for problem:', problemData?.title, 'Code:', starterCode);
+      } catch (err) {
+        console.error('Error setting starter code:', err);
+        setCode('def solution():\n    # Your code here\n    pass');
+      }
     }
-  }, [selectedLanguage, displayProblem?.title]);
+  }, [selectedLanguage, problemData]);
 
   useEffect(() => {
     const fetchProblem = async () => {
       try {
         setLoading(true);
-        // Determine which problem to fetch based on topic/choice
-        let problemSlug = 'two-sum'; // default
         
-        // You can customize this logic based on topic and choice
-        if (topic?.name === 'Arrays & Hashing') {
-          problemSlug = 'two-sum';
-        } else if (topic?.name === 'Two Pointers') {
-          problemSlug = 'container-with-most-water';
-        } else if (topic?.name === 'Sliding Window') {
-          problemSlug = 'longest-substring-without-repeating-characters';
-        } else if (topic?.name === 'Stack') {
-          problemSlug = 'valid-parentheses';
-        } else if (topic?.name === 'Binary Search') {
-          problemSlug = 'binary-search';
-        } else if (topic?.name === 'Linked List') {
-          problemSlug = 'add-two-numbers';
-        } else if (topic?.name === 'Trees') {
-          problemSlug = 'binary-tree-inorder-traversal';
-        } else if (topic?.name === 'Heap / Priority Queue') {
-          problemSlug = 'kth-largest-element-in-an-array';
-        } else if (topic?.name === 'Backtracking') {
-          problemSlug = 'letter-combinations-of-a-phone-number';
-        } else if (topic?.name === 'Tries') {
-          problemSlug = 'implement-trie-prefix-tree';
-        } else if (topic?.name === 'Graphs') {
-          problemSlug = 'number-of-islands';
-        } else if (topic?.name === 'Advanced Graphs') {
-          problemSlug = 'course-schedule';
-        } else if (topic?.name === '1-D Dynamic Programming') {
-          problemSlug = 'climbing-stairs';
-        } else if (topic?.name === '2-D Dynamic Programming') {
-          problemSlug = 'unique-paths';
-        } else if (topic?.name === 'Greedy') {
-          problemSlug = 'jump-game';
-        } else if (topic?.name === 'Intervals') {
-          problemSlug = 'merge-intervals';
-        } else if (topic?.name === 'Math & Geometry') {
-          problemSlug = 'rotate-image';
+        // Initialize story context if not already set (non-blocking)
+        if (!storyContext.conversationId) {
+          // Set fallback story context immediately
+          setStoryContext({
+            conversationId: 'fallback_conversation',
+            responseId: 'fallback_response',
+            story: `Welcome to the realm of ${topic?.name || 'coding challenges'}!`
+          });
+          
+          // Try to get AI story in the background (non-blocking)
+          fetch('http://localhost:5002/api/start', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ topic: topic?.name || 'Arrays & Hashing' })
+          })
+          .then(response => response.ok ? response.json() : null)
+          .then(storyData => {
+            if (storyData && storyData.story && storyData.story.length > 50) {
+              setStoryContext({
+                conversationId: storyData.conversationId,
+                responseId: storyData.responseId,
+                story: storyData.story
+              });
+            }
+          })
+          .catch(error => {
+            console.warn('Background story initialization failed:', error);
+          });
         }
         
-        const response = await fetch(`http://localhost:5002/api/leetcode/${problemSlug}`);
-        const result = await response.json();
+        // Always start with Easy difficulty for each topic
+        const topicKey = `currentDifficulty_${topic?.name || 'default'}`;
+        const currentDifficulty = localStorage.getItem(topicKey) || 'easy';
+        const completedProblems = JSON.parse(localStorage.getItem('completedProblems') || '[]');
         
-        console.log('Fetched problem data:', result);
+        console.log(`Fetching problems for topic: ${topic?.name}, difficulty: ${currentDifficulty}, choice: ${choice}`);
         
-        if (result.status === 'success') {
-          setProblemData(result.data);
-          console.log('Set problemData:', result.data);
+        // Fetch problems by topic with timeout
+        const topicPromise = fetch(`http://localhost:5002/api/leetcode/topic/${encodeURIComponent(topic?.name || 'Arrays & Hashing')}`);
+        const topicTimeout = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Topic fetch timeout')), 10000)
+        );
+        
+        const topicResponse = await Promise.race([topicPromise, topicTimeout]);
+        const topicResult = await topicResponse.json();
+        
+        if (topicResult.status === 'success' && topicResult.data.length > 0) {
+          console.log(`Found ${topicResult.data.length} problems for topic`);
+          
+          // Filter problems by current difficulty and exclude completed ones
+          const availableProblems = topicResult.data.filter(problem => 
+            problem.difficulty.toLowerCase() === currentDifficulty && 
+            !completedProblems.includes(problem.slug)
+          );
+          
+          console.log(`Found ${availableProblems.length} available ${currentDifficulty} problems`);
+          
+          if (availableProblems.length > 0) {
+            // Use choice to select different problems - make each path unique
+            let selectedProblem;
+            if (choice === 'path1') {
+              // First path - select first available problem
+              selectedProblem = availableProblems[0];
+            } else if (choice === 'path2') {
+              // Second path - select second available problem (or first if only one)
+              selectedProblem = availableProblems[1] || availableProblems[0];
+            } else {
+              // Default or other choices - select randomly
+              const randomIndex = Math.floor(Math.random() * availableProblems.length);
+              selectedProblem = availableProblems[randomIndex];
+            }
+            
+            console.log(`Selected problem for ${choice}: ${selectedProblem.slug}`);
+            
+            // Fetch the full problem data with timeout
+            const problemPromise = fetch(`http://localhost:5002/api/leetcode/${selectedProblem.slug}`);
+            const problemTimeout = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Problem fetch timeout')), 8000)
+            );
+            
+            const problemResponse = await Promise.race([problemPromise, problemTimeout]);
+            const problemResult = await problemResponse.json();
+            
+            if (problemResult.status === 'success') {
+              setProblemData(problemResult.data);
+              console.log('Set problemData:', problemResult.data);
+            } else {
+              setError(problemResult.message);
+            }
+          } else {
+            // No more problems at current difficulty, check if we should progress
+            if (currentDifficulty === 'easy') {
+              console.log('No more easy problems, progressing to medium');
+              localStorage.setItem(topicKey, 'medium');
+              // Generate story continuation for medium level (don't await to avoid blocking)
+              generateStoryContinuation('medium').catch(err => console.error('Story continuation error:', err));
+              // Recursively call to get medium problems
+              fetchProblem();
+              return;
+            } else if (currentDifficulty === 'medium') {
+              console.log('No more medium problems, progressing to hard');
+              localStorage.setItem(topicKey, 'hard');
+              // Generate story continuation for hard level (don't await to avoid blocking)
+              generateStoryContinuation('hard').catch(err => console.error('Story continuation error:', err));
+              // Recursively call to get hard problems
+              fetchProblem();
+              return;
+            } else {
+              // All difficulties completed for this topic - generate final story
+              try {
+                const response = await fetch('http://localhost:5002/api/story/hard-completion', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    conversationId: storyContext.conversationId,
+                    responseId: storyContext.responseId,
+                    previousStory: storyContext.story
+                  })
+                });
+
+                if (response.ok) {
+                  const result = await response.json();
+                  setStoryContext({
+                    conversationId: result.conversationId,
+                    responseId: result.responseId,
+                    story: result.story
+                  });
+                  setError(`🎉 ${result.story} 🎉`);
+                } else {
+                  setError('🎉 Congratulations! You have completed all problems for this topic! 🎉');
+                }
+              } catch (error) {
+                console.error('Error generating final story:', error);
+                setError('🎉 Congratulations! You have completed all problems for this topic! 🎉');
+              }
+            }
+          }
         } else {
-          setError(result.message);
+          // No problems found for this topic, try to get any available problems
+          console.log('No problems found for topic, trying to get any available problems');
+          const allProblemsResponse = await fetch('http://localhost:5002/api/leetcode/problems');
+          const allProblemsResult = await allProblemsResponse.json();
+          
+          if (allProblemsResult.status === 'success' && allProblemsResult.data.length > 0) {
+            // Get easy problems from all available problems
+            const easyProblems = allProblemsResult.data.filter(problem => 
+              problem.difficulty.toLowerCase() === 'easy' && 
+              !completedProblems.includes(problem.slug)
+            );
+            
+            if (easyProblems.length > 0) {
+              // Use choice to select different problems
+              let selectedProblem;
+              if (choice === 'path1') {
+                selectedProblem = easyProblems[0];
+              } else if (choice === 'path2') {
+                selectedProblem = easyProblems[1] || easyProblems[0];
+              } else {
+                const randomIndex = Math.floor(Math.random() * easyProblems.length);
+                selectedProblem = easyProblems[randomIndex];
+              }
+              
+              const problemResponse = await fetch(`http://localhost:5002/api/leetcode/${selectedProblem.slug}`);
+              const problemResult = await problemResponse.json();
+              
+              if (problemResult.status === 'success') {
+                setProblemData(problemResult.data);
+                console.log('Set problemData from fallback:', problemResult.data);
+                // Show a message that we're using a fallback problem
+                setError(`No problems found for "${topic?.name}". Showing a general Easy problem instead.`);
+              } else {
+                setError('No problems available for this topic. Please try another topic.');
+              }
+            } else {
+              // Try medium problems if no easy ones
+              const mediumProblems = allProblemsResult.data.filter(problem => 
+                problem.difficulty.toLowerCase() === 'medium' && 
+                !completedProblems.includes(problem.slug)
+              );
+              
+              if (mediumProblems.length > 0) {
+                // Use choice to select different problems
+                let selectedProblem;
+                if (choice === 'path1') {
+                  selectedProblem = mediumProblems[0];
+                } else if (choice === 'path2') {
+                  selectedProblem = mediumProblems[1] || mediumProblems[0];
+                } else {
+                  const randomIndex = Math.floor(Math.random() * mediumProblems.length);
+                  selectedProblem = mediumProblems[randomIndex];
+                }
+                
+                const problemResponse = await fetch(`http://localhost:5002/api/leetcode/${selectedProblem.slug}`);
+                const problemResult = await problemResponse.json();
+                
+                if (problemResult.status === 'success') {
+                  setProblemData(problemResult.data);
+                  console.log('Set problemData from medium fallback:', problemResult.data);
+                  setError(`No Easy problems found for "${topic?.name}". Showing a Medium problem instead.`);
+                } else {
+                  setError('No problems available for this topic. Please try another topic.');
+                }
+              } else {
+                setError(`No problems available for "${topic?.name}". Please try another topic like "Arrays & Hashing", "Linked List", or "Trees".`);
+              }
+            }
+          } else {
+            setError('No problems available. Please try another topic.');
+          }
         }
       } catch (err) {
         setError('Failed to fetch problem data');
@@ -445,6 +731,61 @@ public:
 
     fetchProblem();
   }, [topic, choice]);
+
+  const markProblemCompleted = (problemSlug) => {
+    const completedProblems = JSON.parse(localStorage.getItem('completedProblems') || '[]');
+    if (!completedProblems.includes(problemSlug)) {
+      completedProblems.push(problemSlug);
+      localStorage.setItem('completedProblems', JSON.stringify(completedProblems));
+    }
+  };
+
+  const generateStoryContinuation = async (difficulty) => {
+    try {
+      let endpoint;
+      if (difficulty === 'medium') {
+        endpoint = '/api/story/easy-completion';
+      } else if (difficulty === 'hard') {
+        endpoint = '/api/story/medium-completion';
+      } else {
+        return; // No continuation needed for easy
+      }
+
+      const response = await fetch(`http://localhost:5002${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversationId: storyContext.conversationId,
+          responseId: storyContext.responseId,
+          previousStory: storyContext.story
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setStoryContext({
+          conversationId: result.conversationId,
+          responseId: result.responseId,
+          story: result.story
+        });
+        
+        // Show the story continuation to the user
+        setBellaMessage(result.story);
+        setBellaEmotion('happy');
+        setBellaIsTalking(true);
+        
+        // Auto-hide after 8 seconds
+        setTimeout(() => {
+          setBellaIsTalking(false);
+          setBellaMessage('');
+        }, 8000);
+      }
+    } catch (error) {
+      console.error('Error generating story continuation:', error);
+    }
+  };
 
   const handleExecuteCode = async () => {
     if (!code.trim()) {
@@ -482,6 +823,11 @@ public:
         if (result.allPassed) {
           setIsSolved(true);
           setBellaEmotion('happy');
+          // Mark problem as completed
+          if (problemData?.title) {
+            const problemSlug = problemData.title.toLowerCase().replace(/\s+/g, '-');
+            markProblemCompleted(problemSlug);
+          }
         } else {
           // Code failed - trigger Bella's review
           startBellaReview();
@@ -591,6 +937,11 @@ public:
         if (result.allPassed) {
           setIsSolved(true);
           setBellaEmotion('happy');
+          // Mark problem as completed
+          if (problemData?.title) {
+            const problemSlug = problemData.title.toLowerCase().replace(/\s+/g, '-');
+            markProblemCompleted(problemSlug);
+          }
         } else {
           alert('Your solution failed some test cases. Please fix the issues and try again.');
           // Code failed - trigger Bella's review

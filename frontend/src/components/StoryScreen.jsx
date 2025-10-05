@@ -14,7 +14,9 @@ const StoryScreen = () => {
 
   return (
     <div className="story-screen">
-      <Avatar />
+      <div className="bella-header">
+        <Avatar />
+      </div>
       <div className="story-container">
         <div className="story-box">
           <h2>Welcome to {topic?.name || 'Your Adventure'}!</h2>

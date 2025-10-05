@@ -32,29 +32,34 @@ const TopicSelection = () => {
 
   return (
     <div className="topic-selection">
-      <Avatar />
+      <div className="bella-header">
+        <Avatar />
+      </div>
       <div className="topics-container">
-        {topics.map((topic, index) => {
-          const progress = (topic.completed / topic.total) * 100;
-          return (
-            <div
-              key={index}
-              className="topic-card"
-              onClick={() => handleTopicClick(topic)}
-            >
-              <div className="topic-info">
-                <span className="topic-name">{topic.name}</span>
-                <span className="topic-progress">({topic.completed}/{topic.total})</span>
+        <h2 className="topics-title">Choose Your Adventure Topic!</h2>
+        <div className="topics-grid">
+          {topics.map((topic, index) => {
+            const progress = (topic.completed / topic.total) * 100;
+            return (
+              <div
+                key={index}
+                className="topic-card"
+                onClick={() => handleTopicClick(topic)}
+              >
+                <div className="topic-info">
+                  <span className="topic-name">{topic.name}</span>
+                  <span className="topic-progress">({topic.completed}/{topic.total})</span>
+                </div>
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

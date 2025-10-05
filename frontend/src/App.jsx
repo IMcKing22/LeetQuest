@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import WelcomeScreen from './components/WelcomeScreen';
 import TopicSelection from './components/TopicSelection';
 import StoryScreen from './components/StoryScreen';
 import ChoiceScreen from './components/ChoiceScreen';
@@ -11,7 +12,8 @@ function App() {
     <Router>
       <div className="app">
         <Routes>
-          <Route path="/" element={<TopicSelection />} />
+          <Route path="/" element={<WelcomeScreen />} />
+          <Route path="/topics" element={<TopicSelection />} />
           <Route path="/story" element={<StoryScreen />} />
           <Route path="/choice" element={<ChoiceScreen />} />
           <Route path="/problem" element={<ProblemScreen />} />

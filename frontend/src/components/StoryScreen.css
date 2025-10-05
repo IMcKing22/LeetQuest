@@ -1,43 +1,58 @@
 .story-screen {
   min-height: 100vh;
-  background: #1a1a1a;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   color: #e2e8f0;
   padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.bella-header {
+  margin-bottom: 2rem;
+  animation: slideInUp 0.8s ease-out;
 }
 
 .story-container {
   max-width: 800px;
-  margin: 0 auto;
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 60vh;
 }
 
 .story-box {
-  background: #2d2d2d;
-  border: 1px solid #404040;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: rgba(45, 55, 72, 0.8);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 20px;
+  padding: 3rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
   max-width: 600px;
   width: 100%;
+  animation: slideInUp 0.8s ease-out;
 }
 
 .story-box h2 {
   color: #667eea;
-  margin-bottom: 1.5rem;
-  font-size: 1.8rem;
+  margin-bottom: 2rem;
+  font-size: 2.2rem;
   text-align: center;
+  font-weight: 600;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .story-content {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
   line-height: 1.6;
 }
 
 .story-content p {
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
   font-size: 1.1rem;
   color: #cbd5e1;
 }
@@ -46,17 +61,60 @@
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 0.75rem 2rem;
-  border-radius: 8px;
-  font-size: 1.1rem;
+  padding: 1rem 2.5rem;
+  border-radius: 50px;
+  font-size: 1.2rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   display: block;
   margin: 0 auto;
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .next-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+}
+
+.next-button:active {
+  transform: translateY(-1px);
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .story-screen {
+    padding: 1rem;
+  }
+  
+  .story-box {
+    padding: 2rem;
+  }
+  
+  .story-box h2 {
+    font-size: 1.8rem;
+  }
+  
+  .story-content p {
+    font-size: 1rem;
+  }
+  
+  .next-button {
+    padding: 0.8rem 2rem;
+    font-size: 1.1rem;
+  }
 }

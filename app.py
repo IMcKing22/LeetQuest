@@ -3,11 +3,107 @@ from flask_cors import CORS
 import os
 import requests
 import time
+import pandas as pd
 from uuid import uuid4
 
 from responses_api.build import start_story
 from responses_api.bridge import path_bridge, description_former_bridge, description_latter_bridge, journey_bridge
-#from leetscrape import GetQuestion, GetQuestionsList
+from leetscrape import GetQuestion, GetQuestionsList  # Temporarily disabled due to installation issues
+
+# Load LeetCode data from CSV files
+def load_leetcode_data():
+    """Load LeetCode problems from CSV files"""
+    try:
+        # Load the augmented data which has the most complete information
+        df = pd.read_csv('responses_api/leetcode_resources/Augmented_LeetCode_Questions.csv')
+        return df
+    except Exception as e:
+        print(f"Error loading LeetCode data: {e}")
+        return None
+
+# Global variable to store the data
+leetcode_data = load_leetcode_data()
+
+def get_problem_by_slug(slug):
+    """Get problem data by slug from CSV"""
+    if leetcode_data is None:
+        return None
+    
+    problem = leetcode_data[leetcode_data['titleSlug'] == slug]
+    if problem.empty:
+        return None
+    
+    return problem.iloc[0].to_dict()
+
+def get_problems_by_difficulty(difficulty):
+    """Get all problems of a specific difficulty"""
+    if leetcode_data is None:
+        return []
+    
+    problems = leetcode_data[leetcode_data['difficulty'] == difficulty.lower()]
+    return problems.to_dict('records')
+
+def get_problems_by_topic(topic):
+    """Get problems by topic/genre"""
+    if leetcode_data is None:
+        return []
+    
+    # Map topic names to CSV topic column - use the actual topics from CSV
+    topic_mapping = {
+        'Arrays & Hashing': 'arrays',
+        'Two Pointers': 'arrays',  # Map to arrays since two_pointers doesn't exist
+        'Sliding Window': 'sliding_window',
+        'Stack': 'arrays',  # Map to arrays since stack doesn't exist
+        'Binary Search': 'binary_search',
+        'Linked List': 'linked_list',
+        'Trees': 'tree',
+        'Heap / Priority Queue': 'heap',
+        'Backtracking': 'arrays',  # Map to arrays since backtracking doesn't exist
+        'Tries': 'tree',  # Map to tree since tries doesn't exist
+        'Graphs': 'graph',
+        'Advanced Graphs': 'graph',
+        '1-D Dynamic Programming': 'dp',
+        '2-D Dynamic Programming': 'dp',
+        'Greedy': 'arrays',  # Map to arrays since greedy doesn't exist
+        'Intervals': 'arrays',  # Map to arrays since intervals doesn't exist
+        'Math & Geometry': 'math'
+    }
+    
+    csv_topic = topic_mapping.get(topic, topic.lower())
+    problems = leetcode_data[leetcode_data['topic'] == csv_topic]
+    
+    # If no problems found for the specific topic, try to get problems with known difficulties
+    if problems.empty:
+        # Get problems with known difficulties (not "unknown")
+        problems = leetcode_data[leetcode_data['difficulty'] != 'unknown']
+        # Filter by tags if available
+        if topic == 'Arrays & Hashing':
+            problems = problems[problems['tags'].str.contains('arrays|hashmap', case=False, na=False)]
+        elif topic == 'Linked List':
+            problems = problems[problems['tags'].str.contains('linked_list', case=False, na=False)]
+        elif topic == 'Trees':
+            problems = problems[problems['tags'].str.contains('tree', case=False, na=False)]
+        elif topic == 'Graphs':
+            problems = problems[problems['tags'].str.contains('graph', case=False, na=False)]
+        elif topic == 'Binary Search':
+            problems = problems[problems['tags'].str.contains('binary_search', case=False, na=False)]
+        elif topic == 'Sliding Window':
+            problems = problems[problems['tags'].str.contains('sliding_window', case=False, na=False)]
+        elif topic == 'Strings':
+            problems = problems[problems['tags'].str.contains('string', case=False, na=False)]
+    
+    # If still no problems, get any problems with known difficulties
+    if problems.empty:
+        problems = leetcode_data[leetcode_data['difficulty'] != 'unknown']
+    
+    # Filter out problems with unknown difficulty
+    problems = problems[problems['difficulty'] != 'unknown']
+    
+    # Sort by difficulty: easy first, then medium, then hard
+    difficulty_order = {'easy': 0, 'medium': 1, 'hard': 2}
+    problems = problems.sort_values(by='difficulty', key=lambda x: x.map(difficulty_order))
+    
+    return problems.to_dict('records')
 
 def get_problem_signature(problem_slug, language):
     """Get proper function signature for each problem"""
@@ -53,6 +149,20 @@ def get_problem_signature(problem_slug, language):
             'java': 'public ListNode solution(ListNode l1, ListNode l2) {',
             'cpp': 'ListNode* solution(ListNode* l1, ListNode* l2) {',
             'c': 'struct ListNode* solution(struct ListNode* l1, struct ListNode* l2) {'
+        },
+        'remove-duplicates-from-sorted-array': {
+            'python': 'def solution(nums: List[int]) -> int:',
+            'javascript': 'function solution(nums) {',
+            'java': 'public int solution(int[] nums) {',
+            'cpp': 'int solution(vector<int>& nums) {',
+            'c': 'int solution(int* nums, int numsSize) {'
+        },
+        'linked-list-cycle': {
+            'python': 'def solution(head: Optional[ListNode]) -> bool:',
+            'javascript': 'function solution(head) {',
+            'java': 'public boolean solution(ListNode head) {',
+            'cpp': 'bool solution(ListNode *head) {',
+            'c': 'bool solution(struct ListNode *head) {'
         },
         'binary-tree-inorder-traversal': {
             'python': 'def solution(root: Optional[TreeNode]) -> List[int]:',
@@ -121,7 +231,101 @@ def get_problem_signature(problem_slug, language):
     
     return signatures.get(problem_slug, {}).get(language, 'def solution():')
 
-def get_default_test_cases(problem_slug):
+def get_default_problem_data(problem_slug):
+    """Generate default problem data for common LeetCode problems"""
+    problems_map = {
+        'two-sum': {
+            'title': 'Two Sum',
+            'difficulty': 'Easy',
+            'content': '''<p>Given an array of integers <code>nums</code> and an integer <code>target</code>, return <em>indices of the two numbers such that they add up to</em> <code>target</code>.</p>
+
+<p>You may assume that each input would have <strong>exactly one solution</strong>, and you may not use the same element twice.</p>
+
+<p>You can return the answer in any order.</p>
+
+<p>&nbsp;</p>
+<p><strong>Example 1:</strong></p>
+<pre><strong>Input:</strong> nums = [2,7,11,15], target = 9
+<strong>Output:</strong> [0,1]
+<strong>Explanation:</strong> Because nums[0] + nums[1] == 9, we return [0, 1].
+</pre>
+
+<p><strong>Example 2:</strong></p>
+<pre><strong>Input:</strong> nums = [3,2,4], target = 6
+<strong>Output:</strong> [1,2]
+</pre>
+
+<p><strong>Example 3:</strong></p>
+<pre><strong>Input:</strong> nums = [3,3], target = 6
+<strong>Output:</strong> [0,1]
+</pre>
+
+<p>&nbsp;</p>
+<p><strong>Constraints:</strong></p>
+<ul>
+	<li><code>2 &lt;= nums.length &lt;= 10<sup>4</sup></code></li>
+	<li><code>-10<sup>9</sup> &lt;= nums[i] &lt;= 10<sup>9</sup></code></li>
+	<li><code>-10<sup>9</sup> &lt;= target &lt;= 10<sup>9</sup></code></li>
+	<li><strong>Only one valid answer exists.</strong></li>
+</ul>''',
+            'testCases': [
+                {'input': 'nums = [2,7,11,15], target = 9', 'output': '[0, 1]', 'explanation': 'Because nums[0] + nums[1] == 9, we return [0, 1].'},
+                {'input': 'nums = [3,2,4], target = 6', 'output': '[1, 2]', 'explanation': 'Because nums[1] + nums[2] == 6, we return [1, 2].'},
+                {'input': 'nums = [3,3], target = 6', 'output': '[0, 1]', 'explanation': 'Because nums[0] + nums[1] == 6, we return [0, 1].'}
+            ]
+        },
+        'container-with-most-water': {
+            'title': 'Container With Most Water',
+            'difficulty': 'Medium',
+            'content': '''<p>You are given an integer array <code>height</code> of length <code>n</code>. There are <code>n</code> vertical lines drawn such that the two endpoints of the <code>i<sup>th</sup></code> line are <code>(i, 0)</code> and <code>(i, height[i])</code>.</p>
+
+<p>Find two lines that together with the x-axis form a container, such that the container contains the most water.</p>
+
+<p>Return <em>the maximum amount of water a container can store</em>.</p>
+
+<p><strong>Notice</strong> that you may not slant the container.</p>
+
+<p>&nbsp;</p>
+<p><strong>Example 1:</strong></p>
+<img alt="" src="https://s3-lc-upload.s3.amazonaws.com/uploads/2018/07/17/question_11.jpg" style="width: 600px; height: 287px;" />
+<pre><strong>Input:</strong> height = [1,8,6,2,5,4,8,3,7]
+<strong>Output:</strong> 49
+<strong>Explanation:</strong> The above vertical lines are represented by array [1,8,6,2,5,4,8,3,7]. In this case, the max area of water (blue section) the container can contain is 49.
+</pre>
+
+<p><strong>Example 2:</strong></p>
+<pre><strong>Input:</strong> height = [1,1]
+<strong>Output:</strong> 1
+</pre>
+
+<p>&nbsp;</p>
+<p><strong>Constraints:</strong></p>
+<ul>
+	<li><code>n == height.length</code></li>
+	<li><code>2 &lt;= n &lt;= 10<sup>5</sup></code></li>
+	<li><code>0 &lt;= height[i] &lt;= 10<sup>4</sup></code></li>
+</ul>''',
+            'testCases': [
+                {'input': 'height = [1,8,6,2,5,4,8,3,7]', 'output': '49', 'explanation': 'The above vertical lines are represented by array [1,8,6,2,5,4,8,3,7]. In this case, the max area of water (blue section) the container can contain is 49.'},
+                {'input': 'height = [1,1]', 'output': '1', 'explanation': 'The minimum height is 1, so the area is 1 * 1 = 1.'}
+            ]
+        }
+    }
+    
+    # Return the problem data if it exists, otherwise return a default
+    if problem_slug in problems_map:
+        return problems_map[problem_slug]
+    else:
+        return {
+            'title': 'Sample Problem',
+            'difficulty': 'Easy',
+            'content': '<p>This is a sample problem. The actual problem data is not available.</p>',
+            'testCases': [
+                {'input': 'input = [1, 2, 3]', 'output': 'output', 'explanation': 'Default test case for this problem.'}
+            ]
+        }
+
+def get_default_test_cases(problem_slug, problem_title=None):
     """Generate default test cases for common LeetCode problems"""
     test_cases_map = {
         'two-sum': [
@@ -159,6 +363,15 @@ def get_default_test_cases(problem_slug):
             {'input': 'nums = [3,2,1,5,6,4], k = 2', 'output': '5', 'explanation': 'The 2nd largest element is 5.'},
             {'input': 'nums = [3,2,3,1,2,4,5,5,6], k = 4', 'output': '4', 'explanation': 'The 4th largest element is 4.'}
         ],
+        'remove-duplicates-from-sorted-array': [
+            {'input': 'nums = [1,1,2]', 'output': '2', 'explanation': 'Your function should return length = 2, with the first two elements of nums being 1 and 2 respectively.'},
+            {'input': 'nums = [0,0,1,1,1,2,2,3,3,4]', 'output': '5', 'explanation': 'Your function should return length = 5, with the first five elements of nums being modified to 0, 1, 2, 3, and 4 respectively.'}
+        ],
+        'linked-list-cycle': [
+            {'input': 'head = [3,2,0,-4], pos = 1', 'output': 'true', 'explanation': 'There is a cycle in the linked list, where the tail connects to the 1st node (0-indexed).'},
+            {'input': 'head = [1,2], pos = 0', 'output': 'true', 'explanation': 'There is a cycle in the linked list, where the tail connects to the 0th node.'},
+            {'input': 'head = [1], pos = -1', 'output': 'false', 'explanation': 'There is no cycle in the linked list.'}
+        ],
         'letter-combinations-of-a-phone-number': [
             {'input': 'digits = "23"', 'output': '["ad","ae","af","bd","be","bf","cd","ce","cf"]', 'explanation': 'All possible letter combinations for "23".'},
             {'input': 'digits = ""', 'output': '[]', 'explanation': 'No digits provided.'}
@@ -193,12 +406,72 @@ def get_default_test_cases(problem_slug):
         'rotate-image': [
             {'input': 'matrix = [[1,2,3],[4,5,6],[7,8,9]]', 'output': '[[7,4,1],[8,5,2],[9,6,3]]', 'explanation': 'The matrix is rotated 90 degrees clockwise.'},
             {'input': 'matrix = [[5,1,9,11],[2,4,8,10],[13,3,6,7],[15,14,12,16]]', 'output': '[[15,13,2,5],[14,3,4,1],[12,6,8,9],[16,7,10,11]]', 'explanation': 'The matrix is rotated 90 degrees clockwise.'}
+        ],
+        'maximum-subarray': [
+            {'input': 'nums = [-2,1,-3,4,-1,2,1,-5,4]', 'output': '6', 'explanation': 'The subarray [4,-1,2,1] has the largest sum = 6.'},
+            {'input': 'nums = [1]', 'output': '1', 'explanation': 'The array has only one element, so the maximum sum is 1.'},
+            {'input': 'nums = [5,4,-1,7,8]', 'output': '23', 'explanation': 'The entire array has the largest sum = 23.'}
+        ],
+        'best-time-to-buy-and-sell-stock': [
+            {'input': 'prices = [7,1,5,3,6,4]', 'output': '5', 'explanation': 'Buy on day 2 (price = 1) and sell on day 5 (price = 6), profit = 6-1 = 5.'},
+            {'input': 'prices = [7,6,4,3,1]', 'output': '0', 'explanation': 'In this case, no transactions are done and the max profit = 0.'}
+        ],
+        'house-robber': [
+            {'input': 'nums = [1,2,3,1]', 'output': '4', 'explanation': 'Rob house 1 (money = 1) and then rob house 3 (money = 3). Total amount you can rob = 1 + 3 = 4.'},
+            {'input': 'nums = [2,7,9,3,1]', 'output': '12', 'explanation': 'Rob house 1 (money = 2), rob house 3 (money = 9) and rob house 5 (money = 1). Total amount you can rob = 2 + 9 + 1 = 12.'}
+        ],
+        'longest-palindromic-substring': [
+            {'input': 's = "babad"', 'output': '"bab"', 'explanation': '"aba" is also a valid answer.'},
+            {'input': 's = "cbbd"', 'output': '"bb"', 'explanation': 'The longest palindromic substring is "bb".'}
+        ],
+        'merge-two-sorted-lists': [
+            {'input': 'list1 = [1,2,4], list2 = [1,3,4]', 'output': '[1,1,2,3,4,4]', 'explanation': 'Merged list contains all elements from both lists in sorted order.'},
+            {'input': 'list1 = [], list2 = []', 'output': '[]', 'explanation': 'Both lists are empty, so the result is empty.'},
+            {'input': 'list1 = [], list2 = [0]', 'output': '[0]', 'explanation': 'One list is empty, so the result is the other list.'}
         ]
     }
     
-    return test_cases_map.get(problem_slug, [
-        {'input': 'input = [1, 2, 3]', 'output': 'output', 'explanation': 'Default test case for this problem.'}
-    ])
+    # Try to find by slug first
+    if problem_slug in test_cases_map:
+        return test_cases_map[problem_slug]
+    
+    # Try to find by title keywords if title is provided
+    if problem_title:
+        title_lower = problem_title.lower()
+        for slug, test_cases in test_cases_map.items():
+            # Check if any keywords from the slug appear in the title
+            keywords = slug.split('-')
+            if any(keyword in title_lower for keyword in keywords):
+                return test_cases
+    
+    # Generate generic test cases based on common patterns
+    if problem_title:
+        title_lower = problem_title.lower()
+        if 'sum' in title_lower and 'two' in title_lower:
+            return test_cases_map['two-sum']
+        elif 'container' in title_lower or 'water' in title_lower:
+            return test_cases_map['container-with-most-water']
+        elif 'parentheses' in title_lower or 'valid' in title_lower:
+            return test_cases_map['valid-parentheses']
+        elif 'merge' in title_lower and 'list' in title_lower:
+            return test_cases_map['merge-two-sorted-lists']
+        elif 'maximum' in title_lower and 'subarray' in title_lower:
+            return test_cases_map['maximum-subarray']
+        elif 'stock' in title_lower or 'buy' in title_lower:
+            return test_cases_map['best-time-to-buy-and-sell-stock']
+        elif 'stairs' in title_lower or 'climbing' in title_lower:
+            return test_cases_map['climbing-stairs']
+        elif 'robber' in title_lower or 'house' in title_lower:
+            return test_cases_map['house-robber']
+        elif 'substring' in title_lower and 'repeating' in title_lower:
+            return test_cases_map['longest-substring-without-repeating-characters']
+        elif 'palindromic' in title_lower or 'palindrome' in title_lower:
+            return test_cases_map['longest-palindromic-substring']
+    
+    # Default fallback
+    return [
+        {'input': 'input = [1, 2, 3]', 'output': '[1, 2, 3]', 'explanation': 'Default test case for this problem.'}
+    ]
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -238,17 +511,24 @@ def api_start():
 @app.post("/api/choices")
 def api_choices():
     j = request.get_json(silent=True) or {}
-    sess = SESSIONS.get(j.get("sessionId"))
-    if not sess:
-        return jsonify({"error": "session not found"}), 404
-    base = sess["base_text"]; topic = sess["topic"]
-    former_title = path_bridge(f"{topic} approach A").strip()
-    latter_title = path_bridge(f"{topic} approach B").strip()
-    former_desc  = description_former_bridge(base).strip()
-    latter_desc  = description_latter_bridge(base).strip()
-    journey      = journey_bridge(base).strip()
-    return jsonify({"journey": journey, "former": {"title": former_title, "description": former_desc},
-                    "latter": {"title": latter_title, "description": latter_desc}})
+    topic = j.get("topic", "Arrays & Hashing")
+    choice = j.get("choice", "path1")
+    
+    # Generate creative path titles and descriptions
+    if choice == "path1":
+        former_title = path_bridge(f"{topic} approach A").strip()
+        former_desc = description_former_bridge(f"{topic} systematic approach").strip()
+        return jsonify({
+            "path1Title": former_title,
+            "path1Description": former_desc,
+        })
+    else:
+        latter_title = path_bridge(f"{topic} approach B").strip()
+        latter_desc = description_latter_bridge(f"{topic} creative approach").strip()
+        return jsonify({
+            "path2Title": latter_title,
+            "path2Description": latter_desc,
+        })
 
 # example continue route
 @app.post("/api/continue")
@@ -271,33 +551,109 @@ def api_continue():
     sess["response_id"] = out.get("response_id") or sess.get("response_id")
     return jsonify(out)
 
+@app.post("/api/story/easy-completion")
+def api_story_easy_completion():
+    """Generate story continuation after completing Easy problems"""
+    j = request.get_json(silent=True) or {}
+    conversation_id = j.get("conversationId")
+    response_id = j.get("responseId")
+    previous_story = j.get("previousStory", "")
+    
+    from responses_api.build import continue_story_easy_completion
+    res = continue_story_easy_completion(
+        conversation_id=conversation_id,
+        response_id=response_id,
+        previous_story=previous_story
+    )
+    
+    return jsonify({
+        "story": res["story_text"],
+        "conversationId": res.get("conversation_id"),
+        "responseId": res.get("response_id"),
+    })
+
+@app.post("/api/story/medium-completion")
+def api_story_medium_completion():
+    """Generate story continuation after completing Medium problems"""
+    j = request.get_json(silent=True) or {}
+    conversation_id = j.get("conversationId")
+    response_id = j.get("responseId")
+    previous_story = j.get("previousStory", "")
+    
+    from responses_api.build import continue_story_medium_completion
+    res = continue_story_medium_completion(
+        conversation_id=conversation_id,
+        response_id=response_id,
+        previous_story=previous_story
+    )
+    
+    return jsonify({
+        "story": res["story_text"],
+        "conversationId": res.get("conversation_id"),
+        "responseId": res.get("response_id"),
+    })
+
+@app.post("/api/story/hard-completion")
+def api_story_hard_completion():
+    """Generate story conclusion after completing Hard problems"""
+    j = request.get_json(silent=True) or {}
+    conversation_id = j.get("conversationId")
+    response_id = j.get("responseId")
+    previous_story = j.get("previousStory", "")
+    
+    from responses_api.build import continue_story_hard_completion
+    res = continue_story_hard_completion(
+        conversation_id=conversation_id,
+        response_id=response_id,
+        previous_story=previous_story
+    )
+    
+    return jsonify({
+        "story": res["story_text"],
+        "conversationId": res.get("conversation_id"),
+        "responseId": res.get("response_id"),
+    })
+
 # ============== LeetCode API Routes ==============
 
 @app.route('/api/leetcode/<problem_slug>', methods=['GET'])
 def get_leetcode_problem(problem_slug):
-    """Fetch LeetCode problem data by slug from real LeetCode API"""
+    """Fetch LeetCode problem data by slug from CSV data"""
     try:
-        # Fetch the question data from LeetCode
-        q = GetQuestion(titleSlug=problem_slug).scrape()
+        # Try to get problem from CSV data first
+        problem = get_problem_by_slug(problem_slug)
         
-        # Extract problem data
-        test_cases = getattr(q, 'TestCases', getattr(q, 'testCases', getattr(q, 'examples', [])))
-        
-        # Add default test cases for common problems if none exist
-        if not test_cases:
-            test_cases = get_default_test_cases(problem_slug)
-        
-        problem_data = {
-            'title': getattr(q, 'title', 'Unknown Title'),
-            'difficulty': getattr(q, 'difficulty', 'Unknown'),
-            'likes': getattr(q, 'likes', 0),
-            'content': getattr(q, 'Body', getattr(q, 'content', 'No content available')),
-            'codeSnippets': getattr(q, 'codeSnippets', []),
-            'testCases': test_cases,
-            'hints': getattr(q, 'Hints', []),
-            'topicTags': getattr(q, 'topicTags', []),
-            'isPaidOnly': getattr(q, 'isPaidOnly', False)
-        }
+        if problem:
+            # Safely handle tags field which might be NaN
+            tags = problem.get('tags', '')
+            if pd.isna(tags) or tags == '':
+                tags = ''
+                topic_tags = []
+            else:
+                topic_tags = str(tags).split(',') if tags else []
+            
+            # Try to get function signature from our predefined signatures
+            function_signature = None
+            try:
+                function_signature = get_problem_signature(problem_slug, 'python')
+            except Exception as e:
+                print(f"Could not get function signature for {problem_slug}: {e}")
+                function_signature = None
+            
+            # Convert CSV data to expected format
+            problem_data = {
+                'title': problem.get('title', 'Unknown Title'),
+                'difficulty': problem.get('difficulty', 'Unknown').title(),
+                'content': f"<p>Problem: {problem.get('title', 'Unknown')}</p><p>Topic: {problem.get('topic', 'Unknown')}</p><p>Tags: {tags if tags else 'None'}</p>",
+                'testCases': get_default_test_cases(problem_slug, problem.get('title', '')),  # Use proper test cases
+                'topicTags': topic_tags,
+                'url': problem.get('url', ''),
+                'qid': problem.get('QID', 0),
+                'functionSignature': function_signature  # Add function signature
+            }
+        else:
+            # Fallback to default data if not found in CSV
+            problem_data = get_default_problem_data(problem_slug)
         
         return jsonify({
             'status': 'success',
@@ -317,38 +673,38 @@ def get_two_sum():
 
 @app.route('/api/leetcode/problems', methods=['GET'])
 def get_available_problems():
-    """Get list of available LeetCode problems using leetscrape"""
-    global problems_cache
-    
+    """Get list of available LeetCode problems from CSV data"""
     try:
-        # Use cache if available, otherwise fetch from leetscrape
-        if problems_cache is None:
-            print("Fetching problems list from LeetCode...")
-            ls = GetQuestionsList()
-            ls.scrape()  # Scrape the list of questions
+        if leetcode_data is None:
+            return jsonify({
+                'status': 'error',
+                'message': 'LeetCode data not loaded'
+            }), 500
+        
+        # Convert CSV data to expected format
+        problems = []
+        for _, row in leetcode_data.iterrows():
+            # Safely handle tags field which might be NaN
+            tags = row.get('tags', '')
+            if pd.isna(tags) or tags == '':
+                topic_tags = []
+            else:
+                topic_tags = str(tags).split(',') if tags else []
             
-            # Convert to the format expected by frontend
-            problems = []
-            for _, row in ls.questions.iterrows():
-                problems.append({
-                    'slug': row['titleSlug'],
-                    'title': row['title'],
-                    'difficulty': row['difficulty'],
-                    'acceptanceRate': row.get('acceptanceRate', 0),
-                    'paidOnly': row.get('paidOnly', False),
-                    'topicTags': row.get('topicTags', []),
-                    'qid': row.get('QID', 0)
-                })
-            
-            # Cache the results
-            problems_cache = problems
-            print(f"Successfully fetched {len(problems)} problems from LeetCode")
-        else:
-            print("Using cached problems list")
+            problems.append({
+                'slug': row['titleSlug'],
+                'title': row['title'],
+                'difficulty': row['difficulty'].title(),
+                'acceptanceRate': 0.5,  # Default value since not in CSV
+                'paidOnly': False,  # Default value since not in CSV
+                'topicTags': topic_tags,
+                'qid': row['QID'],
+                'topic': row['topic']
+            })
         
         return jsonify({
             'status': 'success',
-            'data': problems_cache
+            'data': problems
         })
         
     except Exception as e:
@@ -356,6 +712,82 @@ def get_available_problems():
         return jsonify({
             'status': 'error',
             'message': f'Failed to fetch problems list: {str(e)}'
+        }), 500
+
+@app.route('/api/leetcode/problems/<difficulty>', methods=['GET'])
+def get_problems_by_difficulty_endpoint(difficulty):
+    """Get problems by difficulty level"""
+    try:
+        problems = get_problems_by_difficulty(difficulty.lower())
+        
+        # Convert to expected format
+        formatted_problems = []
+        for problem in problems:
+            # Safely handle tags field which might be NaN
+            tags = problem.get('tags', '')
+            if pd.isna(tags) or tags == '':
+                tags_list = []
+            else:
+                tags_list = str(tags).split(',') if tags else []
+            
+            formatted_problems.append({
+                'slug': problem['titleSlug'],
+                'title': problem['title'],
+                'difficulty': problem['difficulty'].title(),
+                'topic': problem['topic'],
+                'tags': tags_list,
+                'qid': problem['QID']
+            })
+        
+        return jsonify({
+            'status': 'success',
+            'data': formatted_problems
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to fetch {difficulty} problems: {str(e)}'
+        }), 500
+
+@app.route('/api/leetcode/topic/<path:topic>', methods=['GET'])
+def get_problems_by_topic_endpoint(topic):
+    """Get problems by topic"""
+    try:
+        # Decode URL encoding
+        from urllib.parse import unquote
+        topic = unquote(topic)
+        
+        problems = get_problems_by_topic(topic)
+        
+        # Convert to expected format
+        formatted_problems = []
+        for problem in problems:
+            # Safely handle tags field which might be NaN
+            tags = problem.get('tags', '')
+            if pd.isna(tags) or tags == '':
+                tags_list = []
+            else:
+                tags_list = str(tags).split(',') if tags else []
+            
+            formatted_problems.append({
+                'slug': problem['titleSlug'],
+                'title': problem['title'],
+                'difficulty': problem['difficulty'].title(),
+                'topic': problem['topic'],
+                'tags': tags_list,
+                'qid': problem['QID']
+            })
+        
+        return jsonify({
+            'status': 'success',
+            'data': formatted_problems
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to fetch {topic} problems: {str(e)}'
         }), 500
 
 @app.route('/api/leetcode/execute', methods=['POST'])
