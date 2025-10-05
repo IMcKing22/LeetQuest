@@ -312,6 +312,5 @@ You have become a coding legend, and new adventures in other realms await your l
             "conversation_id": conversation_id or "default_conversation",
             "response_id": response_id or "default_response",
         }
-
 if __name__ == "__main__":
     print(start_story("Arrays & Hashing"))

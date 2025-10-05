@@ -8,7 +8,11 @@ from uuid import uuid4
 
 from responses_api.build import start_story
 from responses_api.bridge import path_bridge, description_former_bridge, description_latter_bridge, journey_bridge
-from leetscrape import GetQuestion, GetQuestionsList  # Temporarily disabled due to installation issues
+try:
+    from leetscrape import GetQuestion, GetQuestionsList  # Optional: may not be installed
+except Exception:
+    GetQuestion = None
+    GetQuestionsList = None
 
 # Load LeetCode data from CSV files
 def load_leetcode_data():
@@ -109,7 +113,7 @@ def get_problem_signature(problem_slug, language):
     """Get proper function signature for each problem"""
     signatures = {
         'two-sum': {
-            'python': 'def solution(nums: List[int], target: int) -> List[int]:',
+            'python': 'def solution(nums):',
             'javascript': 'function solution(nums, target) {',
             'java': 'public int[] solution(int[] nums, int target) {',
             'cpp': 'vector<int> solution(vector<int>& nums, int target) {',
@@ -163,13 +167,6 @@ def get_problem_signature(problem_slug, language):
             'java': 'public boolean solution(ListNode head) {',
             'cpp': 'bool solution(ListNode *head) {',
             'c': 'bool solution(struct ListNode *head) {'
-        },
-        'maximum-subarray': {
-            'python': 'from typing import List\n\ndef solution(nums: List[int]) -> int:\n    # Your code here\n    pass',
-            'javascript': 'function solution(nums) {\n    // Your code here\n    \n}',
-            'java': 'class Solution {\n    public int solution(int[] nums) {\n        // Your code here\n        return 0;\n    }\n}',
-            'cpp': 'class Solution {\npublic:\n    int solution(vector<int>& nums) {\n        // Your code here\n        return 0;\n    }\n};',
-            'c': 'int solution(int* nums, int numsSize) {\n    // Your code here\n    return 0;\n}'
         },
         'binary-tree-inorder-traversal': {
             'python': 'def solution(root: Optional[TreeNode]) -> List[int]:',
@@ -237,26 +234,6 @@ def get_problem_signature(problem_slug, language):
     }
     
     return signatures.get(problem_slug, {}).get(language, 'def solution():')
-
-# Ensure Python starter code includes required typing imports
-def normalize_python_signature(signature: str | None) -> str | None:
-    if not signature:
-        return signature
-    try:
-        needs = []
-        has_import = 'from typing' in signature or 'import typing' in signature
-        if 'List[' in signature and not has_import:
-            needs.append('List')
-        if 'Optional[' in signature and not has_import:
-            needs.append('Optional')
-        if 'Any' in signature and not has_import:
-            needs.append('Any')
-        if needs:
-            prefix = f"from typing import {', '.join(sorted(set(needs)))}\n\n"
-            return prefix + signature
-        return signature
-    except Exception:
-        return signature
 
 def get_default_problem_data(problem_slug):
     """Generate default problem data for common LeetCode problems"""
@@ -667,35 +644,19 @@ def get_leetcode_problem(problem_slug):
             else:
                 topic_tags = str(tags).split(',') if tags else []
             
-            # Try to get rich content and function signature
+            # Try to get function signature from our predefined signatures
             function_signature = None
-            content_html = None
             try:
-                # Prefer predefined signature (fast)
-                function_signature = normalize_python_signature(get_problem_signature(problem_slug, 'python'))
+                function_signature = get_problem_signature(problem_slug, 'python')
             except Exception as e:
                 print(f"Could not get function signature for {problem_slug}: {e}")
-            
-            # Attempt to scrape full body via leetscrape (best-effort, guarded)
-            try:
-                # Prefer LeetScraper API if available for direct function header
-                q = GetQuestion(titleSlug=problem_slug).scrape()
-                if getattr(q, 'Body', None):
-                    content_html = q.Body
-                # If we still lack a signature, try to pull python3 stub
-                code_snippets = getattr(q, 'Code', {}) or {}
-                py_stub = code_snippets.get('python3') or code_snippets.get('python')
-                if py_stub and not function_signature:
-                    function_signature = normalize_python_signature(py_stub.strip())
-            except Exception as e:
-                # Fall back to CSV-based lightweight content
-                pass
+                function_signature = None
             
             # Convert CSV data to expected format
             problem_data = {
                 'title': problem.get('title', 'Unknown Title'),
                 'difficulty': problem.get('difficulty', 'Unknown').title(),
-                'content': content_html or f"<p>Problem: {problem.get('title', 'Unknown')}</p><p>Topic: {problem.get('topic', 'Unknown')}</p><p>Tags: {tags if tags else 'None'}</p>",
+                'content': f"<p>Problem: {problem.get('title', 'Unknown')}</p><p>Topic: {problem.get('topic', 'Unknown')}</p><p>Tags: {tags if tags else 'None'}</p>",
                 'testCases': get_default_test_cases(problem_slug, problem.get('title', '')),  # Use proper test cases
                 'topicTags': topic_tags,
                 'url': problem.get('url', ''),
@@ -705,6 +666,9 @@ def get_leetcode_problem(problem_slug):
         else:
             # Fallback to default data if not found in CSV
             problem_data = get_default_problem_data(problem_slug)
+            # Always ensure default has test cases and a basic function signature
+            if 'functionSignature' not in problem_data:
+                problem_data['functionSignature'] = get_problem_signature(problem_slug, 'python')
         
         return jsonify({
             'status': 'success',
@@ -727,10 +691,30 @@ def get_available_problems():
     """Get list of available LeetCode problems from CSV data"""
     try:
         if leetcode_data is None:
-            return jsonify({
-                'status': 'error',
-                'message': 'LeetCode data not loaded'
-            }), 500
+            # Fallback to a small default list when CSV isn't available
+            problems = [
+                {
+                    'slug': 'two-sum',
+                    'title': 'Two Sum',
+                    'difficulty': 'Easy',
+                    'acceptanceRate': 0.5,
+                    'paidOnly': False,
+                    'topicTags': ['arrays','hashmap'],
+                    'qid': 1,
+                    'topic': 'arrays'
+                },
+                {
+                    'slug': 'container-with-most-water',
+                    'title': 'Container With Most Water',
+                    'difficulty': 'Medium',
+                    'acceptanceRate': 0.5,
+                    'paidOnly': False,
+                    'topicTags': ['two_pointers'],
+                    'qid': 2,
+                    'topic': 'arrays'
+                }
+            ]
+            return jsonify({'status': 'success', 'data': problems})
         
         # Convert CSV data to expected format
         problems = []
@@ -790,10 +774,18 @@ def get_problems_by_difficulty_endpoint(difficulty):
                 'qid': problem['QID']
             })
         
-        return jsonify({
-            'status': 'success',
-            'data': formatted_problems
-        })
+        if not formatted_problems:
+            # Fallback: provide at least Two Sum for any difficulty request
+            fallback = [{
+                'slug': 'two-sum',
+                'title': 'Two Sum',
+                'difficulty': 'Easy',
+                'topic': 'arrays',
+                'tags': ['arrays','hashmap'],
+                'qid': 1
+            }]
+            return jsonify({'status': 'success', 'data': fallback})
+        return jsonify({'status': 'success', 'data': formatted_problems})
         
     except Exception as e:
         return jsonify({
@@ -830,10 +822,27 @@ def get_problems_by_topic_endpoint(topic):
                 'qid': problem['QID']
             })
         
-        return jsonify({
-            'status': 'success',
-            'data': formatted_problems
-        })
+        if not formatted_problems:
+            # Fallback to at least one easy and one medium problem
+            formatted_problems = [
+                {
+                    'slug': 'two-sum',
+                    'title': 'Two Sum',
+                    'difficulty': 'Easy',
+                    'topic': 'arrays',
+                    'tags': ['arrays','hashmap'],
+                    'qid': 1
+                },
+                {
+                    'slug': 'container-with-most-water',
+                    'title': 'Container With Most Water',
+                    'difficulty': 'Medium',
+                    'topic': 'arrays',
+                    'tags': ['two_pointers'],
+                    'qid': 2
+                }
+            ]
+        return jsonify({'status': 'success', 'data': formatted_problems})
         
     except Exception as e:
         return jsonify({
