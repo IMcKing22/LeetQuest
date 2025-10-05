@@ -15,7 +15,6 @@ client = OpenAI(api_key=api_key) if api_key else None
 
 
 INTRO_INSTRUCTIONS = (
-<<<<<<< HEAD
     "You are a master storyteller creating an epic coding adventure! "
     "Write a captivating intro scene (120-200 words) themed around the given TOPIC. "
     "Create an immersive fantasy/sci-fi setting where the player is a coding hero embarking on a quest. "

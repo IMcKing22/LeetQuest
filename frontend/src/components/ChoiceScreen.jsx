@@ -7,6 +7,7 @@ const ChoiceScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { topic } = location.state || {};
+  const topicName = typeof topic === 'string' ? topic : (topic?.name || topic?.title || 'Arrays & Hashing');
   
   const [story, setStory] = useState('');
   const [path1, setPath1] = useState({ title: 'Path of Efficiency', description: 'Focus on optimal time and space complexity.' });
@@ -44,7 +45,7 @@ const ChoiceScreen = () => {
         setLoading(true);
         
         // Set fallback content immediately
-        const fallbackStory = `🌟 Welcome to the Realm of ${topic?.name || 'Coding Challenges'}! 🌟
+        const fallbackStory = `🌟 Welcome to the Realm of ${topicName || 'Coding Challenges'}! 🌟
 
 You stand at the entrance of an ancient coding temple, where legendary algorithms are said to be hidden within mystical data structures. The air crackles with computational energy as you prepare to embark on your quest.
 
@@ -74,19 +75,22 @@ Which path will you choose to begin your epic journey?`;
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ topic: topic?.name || 'Arrays & Hashing' })
+            body: JSON.stringify({ topic: topicName })
           });
           
           const storyTimeout = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Story generation timeout')), 3000)
+            setTimeout(() => reject(new Error('Story generation timeout')), 8000)
           );
           
           const storyResponse = await Promise.race([storyPromise, storyTimeout]);
           if (storyResponse.ok) {
             const storyData = await storyResponse.json();
-            if (storyData.story && storyData.story.length > 50) {
+            console.log('AI story response:', storyData);
+            if (storyData.story && storyData.story.trim().length > 0) {
               setStory(storyData.story);
             }
+          } else {
+            console.warn('Story response not ok:', storyResponse.status);
           }
         } catch (storyError) {
           console.warn('Story generation failed, using fallback:', storyError);
@@ -98,12 +102,12 @@ Which path will you choose to begin your epic journey?`;
             fetch('http://localhost:5002/api/choices', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ choice: 'path1', topic: topic?.name || 'Arrays & Hashing' })
+              body: JSON.stringify({ choice: 'path1', topic: topicName })
             }),
             fetch('http://localhost:5002/api/choices', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ choice: 'path2', topic: topic?.name || 'Arrays & Hashing' })
+              body: JSON.stringify({ choice: 'path2', topic: topicName })
             })
           ]);
           
@@ -138,10 +142,10 @@ Which path will you choose to begin your epic journey?`;
     };
 
     generateStory();
-  }, [topic]);
+  }, [topicName]);
 
   const handleChoice = (choice) => {
-    navigate('/problem', { state: { topic, choice } });
+    navigate('/problem', { state: { topic: topicName, choice } });
   };
 
   if (loading) {

@@ -164,6 +164,13 @@ def get_problem_signature(problem_slug, language):
             'cpp': 'bool solution(ListNode *head) {',
             'c': 'bool solution(struct ListNode *head) {'
         },
+        'maximum-subarray': {
+            'python': 'from typing import List\n\ndef solution(nums: List[int]) -> int:\n    # Your code here\n    pass',
+            'javascript': 'function solution(nums) {\n    // Your code here\n    \n}',
+            'java': 'class Solution {\n    public int solution(int[] nums) {\n        // Your code here\n        return 0;\n    }\n}',
+            'cpp': 'class Solution {\npublic:\n    int solution(vector<int>& nums) {\n        // Your code here\n        return 0;\n    }\n};',
+            'c': 'int solution(int* nums, int numsSize) {\n    // Your code here\n    return 0;\n}'
+        },
         'binary-tree-inorder-traversal': {
             'python': 'def solution(root: Optional[TreeNode]) -> List[int]:',
             'javascript': 'function solution(root) {',
@@ -230,6 +237,26 @@ def get_problem_signature(problem_slug, language):
     }
     
     return signatures.get(problem_slug, {}).get(language, 'def solution():')
+
+# Ensure Python starter code includes required typing imports
+def normalize_python_signature(signature: str | None) -> str | None:
+    if not signature:
+        return signature
+    try:
+        needs = []
+        has_import = 'from typing' in signature or 'import typing' in signature
+        if 'List[' in signature and not has_import:
+            needs.append('List')
+        if 'Optional[' in signature and not has_import:
+            needs.append('Optional')
+        if 'Any' in signature and not has_import:
+            needs.append('Any')
+        if needs:
+            prefix = f"from typing import {', '.join(sorted(set(needs)))}\n\n"
+            return prefix + signature
+        return signature
+    except Exception:
+        return signature
 
 def get_default_problem_data(problem_slug):
     """Generate default problem data for common LeetCode problems"""
@@ -479,7 +506,16 @@ app = Flask(__name__)
 # Configure CORS (allow requests from React frontend)
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://localhost:5173", "http://localhost:5174"]
+        "origins": [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:5176",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:5175",
+            "http://127.0.0.1:5176"
+        ]
     }
 })
 
@@ -631,19 +667,35 @@ def get_leetcode_problem(problem_slug):
             else:
                 topic_tags = str(tags).split(',') if tags else []
             
-            # Try to get function signature from our predefined signatures
+            # Try to get rich content and function signature
             function_signature = None
+            content_html = None
             try:
-                function_signature = get_problem_signature(problem_slug, 'python')
+                # Prefer predefined signature (fast)
+                function_signature = normalize_python_signature(get_problem_signature(problem_slug, 'python'))
             except Exception as e:
                 print(f"Could not get function signature for {problem_slug}: {e}")
-                function_signature = None
+            
+            # Attempt to scrape full body via leetscrape (best-effort, guarded)
+            try:
+                # Prefer LeetScraper API if available for direct function header
+                q = GetQuestion(titleSlug=problem_slug).scrape()
+                if getattr(q, 'Body', None):
+                    content_html = q.Body
+                # If we still lack a signature, try to pull python3 stub
+                code_snippets = getattr(q, 'Code', {}) or {}
+                py_stub = code_snippets.get('python3') or code_snippets.get('python')
+                if py_stub and not function_signature:
+                    function_signature = normalize_python_signature(py_stub.strip())
+            except Exception as e:
+                # Fall back to CSV-based lightweight content
+                pass
             
             # Convert CSV data to expected format
             problem_data = {
                 'title': problem.get('title', 'Unknown Title'),
                 'difficulty': problem.get('difficulty', 'Unknown').title(),
-                'content': f"<p>Problem: {problem.get('title', 'Unknown')}</p><p>Topic: {problem.get('topic', 'Unknown')}</p><p>Tags: {tags if tags else 'None'}</p>",
+                'content': content_html or f"<p>Problem: {problem.get('title', 'Unknown')}</p><p>Topic: {problem.get('topic', 'Unknown')}</p><p>Tags: {tags if tags else 'None'}</p>",
                 'testCases': get_default_test_cases(problem_slug, problem.get('title', '')),  # Use proper test cases
                 'topicTags': topic_tags,
                 'url': problem.get('url', ''),

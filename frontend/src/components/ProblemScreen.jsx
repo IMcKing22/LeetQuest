@@ -540,14 +540,15 @@ public:
         }
         
         // Always start with Easy difficulty for each topic
-        const topicKey = `currentDifficulty_${topic?.name || 'default'}`;
+        const topicName = typeof topic === 'string' ? topic : (topic?.name || topic?.title || 'Arrays & Hashing');
+        const topicKey = `currentDifficulty_${topicName || 'default'}`;
         const currentDifficulty = localStorage.getItem(topicKey) || 'easy';
         const completedProblems = JSON.parse(localStorage.getItem('completedProblems') || '[]');
         
-        console.log(`Fetching problems for topic: ${topic?.name}, difficulty: ${currentDifficulty}, choice: ${choice}`);
+        console.log(`Fetching problems for topic: ${topicName}, difficulty: ${currentDifficulty}, choice: ${choice}`);
         
         // Fetch problems by topic with timeout
-        const topicPromise = fetch(`http://localhost:5002/api/leetcode/topic/${encodeURIComponent(topic?.name || 'Arrays & Hashing')}`);
+        const topicPromise = fetch(`http://localhost:5002/api/leetcode/topic/${encodeURIComponent(topicName)}`);
         const topicTimeout = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Topic fetch timeout')), 10000)
         );
@@ -737,6 +738,20 @@ public:
     if (!completedProblems.includes(problemSlug)) {
       completedProblems.push(problemSlug);
       localStorage.setItem('completedProblems', JSON.stringify(completedProblems));
+    }
+
+    // Progress difficulty within the same topic: easy -> medium -> hard
+    try {
+      const topicName = typeof topic === 'string' ? topic : (topic?.name || topic?.title || 'default');
+      const topicKey = `currentDifficulty_${topicName}`;
+      const current = (localStorage.getItem(topicKey) || 'easy').toLowerCase();
+      if (current === 'easy') {
+        localStorage.setItem(topicKey, 'medium');
+      } else if (current === 'medium') {
+        localStorage.setItem(topicKey, 'hard');
+      }
+    } catch (e) {
+      console.warn('Failed to progress difficulty:', e);
     }
   };
 

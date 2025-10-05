@@ -1,0 +1,4 @@
+[console_scripts]
+leetscrape=leetscrape.scripts:leetscrape
+leetupload_solution=leetscrape.scripts:leetupload_solution
+
