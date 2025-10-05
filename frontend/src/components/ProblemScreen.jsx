@@ -16,64 +16,222 @@ const ProblemScreen = () => {
   const [executing, setExecuting] = useState(false);
   const [executionResults, setExecutionResults] = useState(null);
 
-  // Programming language configurations
-  const languages = {
-    python: {
-      name: 'Python',
-      extension: 'py',
-      starterCode: `def solution(nums, target):
+  console.log('ProblemScreen rendered with:', { topic, choice, loading, error, problemData });
+
+  // Define displayProblem early to avoid hoisting issues
+  const displayProblem = problemData || {
+    title: "Two Sum",
+    difficulty: "Easy",
+    content: `Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
+
+You may assume that each input would have exactly one solution, and you may not use the same element twice.
+
+You can return the answer in any order.`,
+    testCases: [
+      {
+        input: "nums = [2,7,11,15], target = 9",
+        output: "[0,1]",
+        explanation: "Because nums[0] + nums[1] == 9, we return [0, 1]."
+      },
+      {
+        input: "nums = [3,2,4], target = 6",
+        output: "[1,2]",
+        explanation: "Because nums[1] + nums[2] == 6, we return [1, 2]."
+      }
+    ]
+  };
+
+  // Function to generate appropriate starter code based on problem type
+  const getStarterCode = (language, problemTitle) => {
+    const title = (problemTitle || 'Two Sum').toLowerCase();
+    
+    if (title.includes('two sum')) {
+      if (language === 'python') return `def solution(nums, target):
     # Your code here
-    pass`,
-      languageId: 71
-    },
-    javascript: {
-      name: 'JavaScript',
-      extension: 'js',
-      starterCode: `function solution(nums, target) {
+    pass`;
+      if (language === 'javascript') return `function solution(nums, target) {
     // Your code here
     
-}`,
-      languageId: 63
-    },
-    java: {
-      name: 'Java',
-      extension: 'java',
-      starterCode: `class Solution {
+}`;
+      if (language === 'java') return `class Solution {
     public int[] solution(int[] nums, int target) {
         // Your code here
         return new int[0];
     }
-}`,
-      languageId: 62
-    },
-    cpp: {
-      name: 'C++',
-      extension: 'cpp',
-      starterCode: `class Solution {
+}`;
+      if (language === 'cpp') return `class Solution {
 public:
     vector<int> solution(vector<int>& nums, int target) {
         // Your code here
         return {};
     }
-};`,
+};`;
+      if (language === 'c') return `int* solution(int* nums, int numsSize, int target, int* returnSize) {
+    // Your code here
+    *returnSize = 0;
+    return NULL;
+}`;
+    }
+    
+    if (title.includes('container') || title.includes('water')) {
+      if (language === 'python') return `def solution(height):
+    # Your code here
+    pass`;
+      if (language === 'javascript') return `function solution(height) {
+    // Your code here
+    
+}`;
+      if (language === 'java') return `class Solution {
+    public int solution(int[] height) {
+        // Your code here
+        return 0;
+    }
+}`;
+      if (language === 'cpp') return `class Solution {
+public:
+    int solution(vector<int>& height) {
+        // Your code here
+        return 0;
+    }
+};`;
+    }
+    
+    if (title.includes('longest') || title.includes('substring')) {
+      if (language === 'python') return `def solution(s):
+    # Your code here
+    pass`;
+      if (language === 'javascript') return `function solution(s) {
+    // Your code here
+    
+}`;
+      if (language === 'java') return `class Solution {
+    public int solution(String s) {
+        // Your code here
+        return 0;
+    }
+}`;
+      if (language === 'cpp') return `class Solution {
+public:
+    int solution(string s) {
+        // Your code here
+        return 0;
+    }
+};`;
+    }
+    
+    if (title.includes('valid') || title.includes('parentheses')) {
+      if (language === 'python') return `def solution(s):
+    # Your code here
+    pass`;
+      if (language === 'javascript') return `function solution(s) {
+    // Your code here
+    
+}`;
+      if (language === 'java') return `class Solution {
+    public boolean solution(String s) {
+        // Your code here
+        return false;
+    }
+}`;
+      if (language === 'cpp') return `class Solution {
+public:
+    bool solution(string s) {
+        // Your code here
+        return false;
+    }
+};`;
+    }
+    
+    if (title.includes('binary search')) {
+      if (language === 'python') return `def solution(nums, target):
+    # Your code here
+    pass`;
+      if (language === 'javascript') return `function solution(nums, target) {
+    // Your code here
+    
+}`;
+      if (language === 'java') return `class Solution {
+    public int solution(int[] nums, int target) {
+        // Your code here
+        return -1;
+    }
+}`;
+      if (language === 'cpp') return `class Solution {
+public:
+    int solution(vector<int>& nums, int target) {
+        // Your code here
+        return -1;
+    }
+};`;
+    }
+    
+    // Default starter code
+    if (language === 'python') return `def solution():
+    # Your code here
+    pass`;
+    if (language === 'javascript') return `function solution() {
+    // Your code here
+    
+}`;
+    if (language === 'java') return `class Solution {
+    public int solution() {
+        // Your code here
+        return 0;
+    }
+}`;
+    if (language === 'cpp') return `class Solution {
+public:
+    int solution() {
+        // Your code here
+        return 0;
+    }
+};`;
+    if (language === 'c') return `int solution() {
+    // Your code here
+    return 0;
+}`;
+  };
+
+  // Programming language configurations
+  const languages = {
+    python: {
+      name: 'Python',
+      extension: 'py',
+      languageId: 71
+    },
+    javascript: {
+      name: 'JavaScript',
+      extension: 'js',
+      languageId: 63
+    },
+    java: {
+      name: 'Java',
+      extension: 'java',
+      languageId: 62
+    },
+    cpp: {
+      name: 'C++',
+      extension: 'cpp',
       languageId: 54
     },
     c: {
       name: 'C',
       extension: 'c',
-      starterCode: `int* solution(int* nums, int numsSize, int target, int* returnSize) {
-    // Your code here
-    *returnSize = 0;
-    return NULL;
-}`,
       languageId: 50
     }
   };
 
-  // Initialize code with starter code when language changes
+  // Initialize code with starter code when language changes or problem changes
   useEffect(() => {
-    setCode(languages[selectedLanguage].starterCode);
-  }, [selectedLanguage]);
+    try {
+      const starterCode = getStarterCode(selectedLanguage, displayProblem?.title || 'Two Sum');
+      setCode(starterCode);
+      console.log('Set starter code:', starterCode);
+    } catch (err) {
+      console.error('Error setting starter code:', err);
+      setCode('def solution():\n    # Your code here\n    pass');
+    }
+  }, [selectedLanguage, displayProblem?.title]);
 
   useEffect(() => {
     const fetchProblem = async () => {
@@ -194,36 +352,82 @@ public:
     }
   };
 
-  const handleSolve = () => {
-    setIsSolved(true);
+  const handleKeyDown = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const textarea = e.target;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+      
+      // Insert tab character
+      const newValue = value.substring(0, start) + '    ' + value.substring(end);
+      setCode(newValue);
+      
+      // Set cursor position after the inserted tab
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+      }, 0);
+    }
+  };
+
+  const handleSolve = async () => {
+    if (!code.trim()) {
+      alert('Please write some code first!');
+      return;
+    }
+
+    // First run the code to check if it works
+    setExecuting(true);
+    setExecutionResults(null);
+
+    const requestData = {
+      code: code,
+      language: selectedLanguage,
+      languageId: languages[selectedLanguage].languageId,
+      testCases: displayProblem.testCases || []
+    };
+
+    try {
+      const response = await fetch('http://localhost:5002/api/leetcode/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        setExecutionResults(result);
+        if (result.allPassed) {
+          setIsSolved(true);
+        } else {
+          alert('Your solution failed some test cases. Please fix the issues and try again.');
+        }
+      } else {
+        alert('Your code has errors. Please fix them and try again.');
+        setExecutionResults({
+          status: 'error',
+          message: result.message
+        });
+      }
+    } catch (err) {
+      alert('Failed to execute code. Please try again.');
+      setExecutionResults({
+        status: 'error',
+        message: 'Failed to execute code: ' + err.message
+      });
+    } finally {
+      setExecuting(false);
+    }
   };
 
   const handleNextStory = () => {
     navigate('/story', { state: { topic, choice, completed: true } });
   };
 
-  // Use real data from API or fallback to dummy data
-  const displayProblem = problemData || {
-    title: "Two Sum",
-    difficulty: "Easy",
-    content: `Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
-
-You may assume that each input would have exactly one solution, and you may not use the same element twice.
-
-You can return the answer in any order.`,
-    testCases: [
-      {
-        input: "nums = [2,7,11,15], target = 9",
-        output: "[0,1]",
-        explanation: "Because nums[0] + nums[1] == 9, we return [0, 1]."
-      },
-      {
-        input: "nums = [3,2,4], target = 6",
-        output: "[1,2]",
-        explanation: "Because nums[1] + nums[2] == 6, we return [1, 2]."
-      }
-    ]
-  };
 
   if (loading) {
     return (
@@ -253,6 +457,9 @@ You can return the answer in any order.`,
       </div>
     );
   }
+
+  // Add error boundary for the main render
+  try {
 
   return (
     <div className="problem-screen">
@@ -332,6 +539,8 @@ You can return the answer in any order.`,
                     rows={15}
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    spellCheck={false}
                   />
                 </div>
                 <div className="editor-actions">
@@ -345,9 +554,9 @@ You can return the answer in any order.`,
                   <button 
                     className="solve-button"
                     onClick={handleSolve}
-                    disabled={isSolved}
+                    disabled={executing || isSolved}
                   >
-                    {isSolved ? 'Solved!' : 'Submit Solution'}
+                    {executing ? 'Checking...' : isSolved ? 'Solved!' : 'Submit Solution'}
                   </button>
                 </div>
               </div>
@@ -414,6 +623,21 @@ You can return the answer in any order.`,
       </div>
     </div>
   );
+  } catch (renderError) {
+    console.error('Error rendering ProblemScreen:', renderError);
+    return (
+      <div className="problem-screen">
+        <Avatar />
+        <div className="problem-container">
+          <div className="error-message">
+            <h2>Error rendering problem screen</h2>
+            <p>Something went wrong. Please refresh the page.</p>
+            <button onClick={() => window.location.reload()}>Refresh</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default ProblemScreen;

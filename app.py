@@ -5,6 +5,85 @@ import requests
 import time
 from leetscrape import GetQuestion, GetQuestionsList
 
+def get_default_test_cases(problem_slug):
+    """Generate default test cases for common LeetCode problems"""
+    test_cases_map = {
+        'two-sum': [
+            {'input': 'nums = [2,7,11,15], target = 9', 'output': '[0, 1]', 'explanation': 'Because nums[0] + nums[1] == 9, we return [0, 1].'},
+            {'input': 'nums = [3,2,4], target = 6', 'output': '[1, 2]', 'explanation': 'Because nums[1] + nums[2] == 6, we return [1, 2].'},
+            {'input': 'nums = [3,3], target = 6', 'output': '[0, 1]', 'explanation': 'Because nums[0] + nums[1] == 6, we return [0, 1].'}
+        ],
+        'container-with-most-water': [
+            {'input': 'height = [1,8,6,2,5,4,8,3,7]', 'output': '49', 'explanation': 'The above vertical lines are represented by array [1,8,6,2,5,4,8,3,7]. In this case, the max area of water (blue section) the container can contain is 49.'},
+            {'input': 'height = [1,1]', 'output': '1', 'explanation': 'The minimum height is 1, so the area is 1 * 1 = 1.'}
+        ],
+        'longest-substring-without-repeating-characters': [
+            {'input': 's = "abcabcbb"', 'output': '3', 'explanation': 'The answer is "abc", with the length of 3.'},
+            {'input': 's = "bbbbb"', 'output': '1', 'explanation': 'The answer is "b", with the length of 1.'},
+            {'input': 's = "pwwkew"', 'output': '3', 'explanation': 'The answer is "wke", with the length of 3.'}
+        ],
+        'valid-parentheses': [
+            {'input': 's = "()"', 'output': 'true', 'explanation': 'The string contains valid parentheses.'},
+            {'input': 's = "()[]{}"', 'output': 'true', 'explanation': 'The string contains valid parentheses.'},
+            {'input': 's = "(]"', 'output': 'false', 'explanation': 'The string contains invalid parentheses.'}
+        ],
+        'binary-search': [
+            {'input': 'nums = [-1,0,3,5,9,12], target = 9', 'output': '4', 'explanation': '9 exists in nums and its index is 4'},
+            {'input': 'nums = [-1,0,3,5,9,12], target = 2', 'output': '-1', 'explanation': '2 does not exist in nums so return -1'}
+        ],
+        'add-two-numbers': [
+            {'input': 'l1 = [2,4,3], l2 = [5,6,4]', 'output': '[7,0,8]', 'explanation': '342 + 465 = 807'},
+            {'input': 'l1 = [0], l2 = [0]', 'output': '[0]', 'explanation': '0 + 0 = 0'}
+        ],
+        'binary-tree-inorder-traversal': [
+            {'input': 'root = [1,null,2,3]', 'output': '[1,3,2]', 'explanation': 'Inorder traversal of the binary tree.'},
+            {'input': 'root = []', 'output': '[]', 'explanation': 'Empty tree has no nodes.'}
+        ],
+        'kth-largest-element-in-an-array': [
+            {'input': 'nums = [3,2,1,5,6,4], k = 2', 'output': '5', 'explanation': 'The 2nd largest element is 5.'},
+            {'input': 'nums = [3,2,3,1,2,4,5,5,6], k = 4', 'output': '4', 'explanation': 'The 4th largest element is 4.'}
+        ],
+        'letter-combinations-of-a-phone-number': [
+            {'input': 'digits = "23"', 'output': '["ad","ae","af","bd","be","bf","cd","ce","cf"]', 'explanation': 'All possible letter combinations for "23".'},
+            {'input': 'digits = ""', 'output': '[]', 'explanation': 'No digits provided.'}
+        ],
+        'implement-trie-prefix-tree': [
+            {'input': 'operations = ["Trie","insert","search","search","startsWith","insert","search"]\nvalues = [[],"apple","apple","app","app","app","app"]', 'output': '[null,null,true,false,true,null,true]', 'explanation': 'Trie operations demonstration.'}
+        ],
+        'number-of-islands': [
+            {'input': 'grid = [["1","1","1","1","0"],["1","1","0","1","0"],["1","1","0","0","0"],["0","0","0","0","0"]]', 'output': '1', 'explanation': 'There is one island in the grid.'},
+            {'input': 'grid = [["1","1","0","0","0"],["1","1","0","0","0"],["0","0","1","0","0"],["0","0","0","1","1"]]', 'output': '3', 'explanation': 'There are three islands in the grid.'}
+        ],
+        'course-schedule': [
+            {'input': 'numCourses = 2, prerequisites = [[1,0]]', 'output': 'true', 'explanation': 'You can finish course 1 after course 0.'},
+            {'input': 'numCourses = 2, prerequisites = [[1,0],[0,1]]', 'output': 'false', 'explanation': 'There is a cycle in the prerequisites.'}
+        ],
+        'climbing-stairs': [
+            {'input': 'n = 2', 'output': '2', 'explanation': 'There are two ways to climb to the top: 1. 1 step + 1 step, 2. 2 steps'},
+            {'input': 'n = 3', 'output': '3', 'explanation': 'There are three ways to climb to the top: 1. 1 step + 1 step + 1 step, 2. 1 step + 2 steps, 3. 2 steps + 1 step'}
+        ],
+        'unique-paths': [
+            {'input': 'm = 3, n = 7', 'output': '28', 'explanation': 'There are 28 unique paths from top-left to bottom-right.'},
+            {'input': 'm = 3, n = 2', 'output': '3', 'explanation': 'There are 3 unique paths from top-left to bottom-right.'}
+        ],
+        'jump-game': [
+            {'input': 'nums = [2,3,1,1,4]', 'output': 'true', 'explanation': 'You can reach the last index by jumping 1 step from index 0 to 1, then 3 steps to the last index.'},
+            {'input': 'nums = [3,2,1,0,4]', 'output': 'false', 'explanation': 'You will always arrive at index 3 no matter what. Its maximum jump length is 0, which makes it impossible to reach the last index.'}
+        ],
+        'merge-intervals': [
+            {'input': 'intervals = [[1,3],[2,6],[8,10],[15,18]]', 'output': '[[1,6],[8,10],[15,18]]', 'explanation': 'Since intervals [1,3] and [2,6] overlap, merge them into [1,6].'},
+            {'input': 'intervals = [[1,4],[4,5]]', 'output': '[[1,5]]', 'explanation': 'Intervals [1,4] and [4,5] are considered overlapping.'}
+        ],
+        'rotate-image': [
+            {'input': 'matrix = [[1,2,3],[4,5,6],[7,8,9]]', 'output': '[[7,4,1],[8,5,2],[9,6,3]]', 'explanation': 'The matrix is rotated 90 degrees clockwise.'},
+            {'input': 'matrix = [[5,1,9,11],[2,4,8,10],[13,3,6,7],[15,14,12,16]]', 'output': '[[15,13,2,5],[14,3,4,1],[12,6,8,9],[16,7,10,11]]', 'explanation': 'The matrix is rotated 90 degrees clockwise.'}
+        ]
+    }
+    
+    return test_cases_map.get(problem_slug, [
+        {'input': 'input = [1, 2, 3]', 'output': 'output', 'explanation': 'Default test case for this problem.'}
+    ])
+
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -30,25 +109,9 @@ def get_leetcode_problem(problem_slug):
         # Extract problem data
         test_cases = getattr(q, 'TestCases', getattr(q, 'testCases', getattr(q, 'examples', [])))
         
-        # Add default test cases for two-sum if none exist
-        if problem_slug == 'two-sum' and not test_cases:
-            test_cases = [
-                {
-                    'input': 'nums = [2,7,11,15], target = 9',
-                    'output': '[0, 1]',
-                    'explanation': 'Because nums[0] + nums[1] == 9, we return [0, 1].'
-                },
-                {
-                    'input': 'nums = [3,2,4], target = 6',
-                    'output': '[1, 2]',
-                    'explanation': 'Because nums[1] + nums[2] == 6, we return [1, 2].'
-                },
-                {
-                    'input': 'nums = [3,3], target = 6',
-                    'output': '[0, 1]',
-                    'explanation': 'Because nums[0] + nums[1] == 6, we return [0, 1].'
-                }
-            ]
+        # Add default test cases for common problems if none exist
+        if not test_cases:
+            test_cases = get_default_test_cases(problem_slug)
         
         problem_data = {
             'title': getattr(q, 'title', 'Unknown Title'),
@@ -147,13 +210,41 @@ def execute_code():
 
                 # Create test code based on language
                 if language_id == 71:  # Python
-                    test_code = f"""
+                    parsed_input = parse_input_string(input_data)
+                    if isinstance(parsed_input, tuple):
+                        test_code = f"""
 {code}
 
 # Test the function
 try:
-    input_params = {parse_input_string(input_data)}
+    input_params = {parsed_input}
     result = solution(*input_params)
+    print(str(result))
+except Exception as e:
+    print(f"Error: {{e}}")
+"""
+                    else:
+                        # Handle string inputs properly
+                        if isinstance(parsed_input, str):
+                            test_code = f"""
+{code}
+
+# Test the function
+try:
+    input_param = {repr(parsed_input)}
+    result = solution(input_param)
+    print(str(result))
+except Exception as e:
+    print(f"Error: {{e}}")
+"""
+                        else:
+                            test_code = f"""
+{code}
+
+# Test the function
+try:
+    input_param = {parsed_input}
+    result = solution(input_param)
     print(str(result))
 except Exception as e:
     print(f"Error: {{e}}")
@@ -198,7 +289,12 @@ print("Test case {i + 1} executed");
 
                 if judge0_result['status'] == 'success':
                     actual_output = judge0_result['output'].strip()
-                    passed = actual_output == expected_output
+                    
+                    # Normalize outputs for comparison (True -> true, False -> false)
+                    normalized_actual = normalize_output(actual_output)
+                    normalized_expected = normalize_output(expected_output)
+                    
+                    passed = normalized_actual == normalized_expected
                     all_passed = all_passed and passed
                     
                     # Store the raw output for display
@@ -316,6 +412,16 @@ def submit_to_judge0(code, language_id=71):
             'status': 'error',
             'error': f'Judge0 API error: {str(e)}'
         }
+
+def normalize_output(output):
+    """Normalize output for comparison (e.g., True -> true, False -> false)"""
+    if output == "True":
+        return "true"
+    elif output == "False":
+        return "false"
+    elif output == "None":
+        return "null"
+    return output
 
 def parse_input_string(input_str):
     """Parse input string like 'nums = [2,7,11,15], target = 9' into Python objects"""
