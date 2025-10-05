@@ -17,6 +17,13 @@ const ProblemScreen = () => {
   const [executing, setExecuting] = useState(false);
   const [executionResults, setExecutionResults] = useState(null);
   const editorRef = useRef(null);
+  
+  // Bella's animation states
+  const [bellaEmotion, setBellaEmotion] = useState('neutral');
+  const [bellaIsTalking, setBellaIsTalking] = useState(false);
+  const [speechBubble, setSpeechBubble] = useState({ visible: false, messages: [] });
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [apiKey, setApiKey] = useState('');
 
   console.log('ProblemScreen rendered with:', { topic, choice, loading, error, problemData });
 
@@ -41,6 +48,135 @@ You can return the answer in any order.`,
         explanation: "Because nums[1] + nums[2] == 6, we return [1, 2]."
       }
     ]
+  };
+
+  // Bella's AI review functions
+  const detectEmotionForReview = (text) => {
+    const lower = text.toLowerCase();
+    
+    if (lower.includes('wrong') || lower.includes('error') || lower.includes('bug') || 
+        lower.includes('issue') || lower.includes('problem')) {
+      return 'sad';
+    }
+    if (lower.includes('great') || lower.includes('correct') || lower.includes('good') ||
+        lower.includes('well done') || lower.includes('perfect')) {
+      return 'happy';
+    }
+    if (lower.includes('however') || lower.includes('but') || lower.includes('consider')) {
+      return 'thinking';
+    }
+    if (lower.includes('!') || lower.includes('important') || lower.includes('critical')) {
+      return 'surprised';
+    }
+    
+    return 'neutral';
+  };
+
+  const parseReviewIntoChunks = (review) => {
+    const chunks = [];
+    const lines = review.split('\n').filter(line => line.trim());
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('```') || trimmed.includes('```')) {
+        // Code block
+        const codeMatch = review.match(/```[\w]*\n([\s\S]*?)```/);
+        if (codeMatch) {
+          chunks.push({ text: codeMatch[1].trim(), isCode: true });
+        }
+      } else if (trimmed.length > 10) {
+        // Regular text
+        chunks.push({ text: trimmed, isCode: false });
+      }
+    }
+    
+    return chunks.length > 0 ? chunks : [{ text: review, isCode: false }];
+  };
+
+  const getMockReview = () => {
+    return [
+      { text: "Let me review your code! 👀", isCode: false },
+      { text: "I found a few issues we should talk about.", isCode: false },
+      { text: "First, I notice you're using a nested loop here. That gives you O(n²) time complexity.", isCode: false },
+      { text: "for (let i = 0; i < arr.length; i++) {\n  for (let j = 0; j < arr.length; j++) {\n    // ...\n  }\n}", isCode: true },
+      { text: "For this problem, you can optimize it to O(n) using a hash map to store values you've seen.", isCode: false },
+      { text: "Also, watch out for edge cases! What happens if the array is empty or has only one element?", isCode: false },
+      { text: "Try adding checks like: if (!arr || arr.length === 0) return []", isCode: false },
+      { text: "With these fixes, your solution will be much faster! Give it another try! 💪", isCode: false }
+    ];
+  };
+
+  const reviewWithOpenAI = async (codeToReview) => {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages: [{
+            role: 'system',
+            content: 'You are Bella, a friendly code reviewer. Analyze the LeetCode solution and explain what is wrong in 3-5 simple, short chunks. Each chunk should be 1-2 sentences. Be encouraging but point out issues clearly. Format code snippets on separate lines.'
+          }, {
+            role: 'user',
+            content: codeToReview
+          }],
+          temperature: 0.7
+        })
+      });
+      
+      const data = await response.json();
+      const review = data.choices[0].message.content;
+      
+      return parseReviewIntoChunks(review);
+      
+    } catch (error) {
+      console.error('OpenAI API Error:', error);
+      return getMockReview();
+    }
+  };
+
+  const startBellaReview = async () => {
+    setBellaEmotion('thinking');
+    setBellaIsTalking(true);
+    
+    let reviewChunks;
+    if (apiKey.trim()) {
+      reviewChunks = await reviewWithOpenAI(code);
+    } else {
+      reviewChunks = getMockReview();
+    }
+    
+    setSpeechBubble({ visible: true, messages: reviewChunks });
+    setCurrentMessageIndex(0);
+    
+    // Display messages one by one
+    for (let i = 0; i < reviewChunks.length; i++) {
+      const chunk = reviewChunks[i];
+      
+      // Set emotion based on chunk content
+      const emotion = detectEmotionForReview(chunk.text);
+      setBellaEmotion(emotion);
+      
+      // Calculate talk duration based on text length
+      const duration = Math.min(chunk.text.length * 30, 2000);
+      setBellaIsTalking(true);
+      
+      setCurrentMessageIndex(i);
+      
+      // Wait before next chunk
+      await new Promise(resolve => setTimeout(resolve, duration + 1000));
+    }
+    
+    setBellaIsTalking(false);
+    setBellaEmotion('neutral');
+    
+    // Hide speech bubble after 5 seconds
+    setTimeout(() => {
+      setSpeechBubble({ visible: false, messages: [] });
+    }, 5000);
   };
 
   // Function to generate appropriate starter code based on problem type
@@ -342,12 +478,18 @@ public:
         setExecutionResults(result);
         if (result.allPassed) {
           setIsSolved(true);
+          setBellaEmotion('happy');
+        } else {
+          // Code failed - trigger Bella's review
+          startBellaReview();
         }
       } else {
         setExecutionResults({
           status: 'error',
           message: result.message
         });
+        // Code has errors - trigger Bella's review
+        startBellaReview();
       }
     } catch (err) {
       console.error('Error executing code:', err);
@@ -355,6 +497,8 @@ public:
         status: 'error',
         message: 'Failed to execute code: ' + err.message
       });
+      // Network error - trigger Bella's review
+      startBellaReview();
     } finally {
       setExecuting(false);
     }
@@ -443,8 +587,11 @@ public:
         setExecutionResults(result);
         if (result.allPassed) {
           setIsSolved(true);
+          setBellaEmotion('happy');
         } else {
           alert('Your solution failed some test cases. Please fix the issues and try again.');
+          // Code failed - trigger Bella's review
+          startBellaReview();
         }
       } else {
         alert('Your code has errors. Please fix them and try again.');
@@ -452,6 +599,8 @@ public:
           status: 'error',
           message: result.message
         });
+        // Code has errors - trigger Bella's review
+        startBellaReview();
       }
     } catch (err) {
       alert('Failed to execute code. Please try again.');
@@ -459,6 +608,8 @@ public:
         status: 'error',
         message: 'Failed to execute code: ' + err.message
       });
+      // Network error - trigger Bella's review
+      startBellaReview();
     } finally {
       setExecuting(false);
     }
@@ -472,7 +623,7 @@ public:
   if (loading) {
     return (
       <div className="problem-screen">
-        <Avatar />
+        <Avatar name="Bella" emotion="thinking" isTalking={false} />
         <div className="problem-container">
           <div className="loading-message">
             <h2>Loading problem...</h2>
@@ -486,7 +637,7 @@ public:
   if (error) {
     return (
       <div className="problem-screen">
-        <Avatar />
+        <Avatar name="Bella" emotion="sad" isTalking={false} />
         <div className="problem-container">
           <div className="error-message">
             <h2>Error loading problem</h2>
@@ -504,7 +655,37 @@ public:
   return (
     <div className="problem-screen">
       <div className="problem-container">
-        <Avatar />
+        <div className="avatar-section">
+          <Avatar name="Bella" emotion={bellaEmotion} isTalking={bellaIsTalking} />
+          
+          {/* Speech Bubble */}
+          {speechBubble.visible && speechBubble.messages.length > 0 && (
+            <div className="speech-bubble">
+              <div className="speech-bubble-content">
+                {speechBubble.messages[currentMessageIndex]?.isCode ? (
+                  <pre className="speech-code">
+                    <code>{speechBubble.messages[currentMessageIndex]?.text}</code>
+                  </pre>
+                ) : (
+                  <p>{speechBubble.messages[currentMessageIndex]?.text}</p>
+                )}
+              </div>
+              <div className="speech-bubble-arrow"></div>
+            </div>
+          )}
+          
+          {/* API Key Input (small and discrete) */}
+          <div className="api-key-section">
+            <input
+              type="password"
+              placeholder="OpenAI API Key (optional)"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className="api-key-input"
+            />
+          </div>
+        </div>
+        
         <div className="problem-header">
           <div className="problem-title-section">
             <h1>{displayProblem.title}</h1>
@@ -694,7 +875,7 @@ public:
     console.error('Error rendering ProblemScreen:', renderError);
     return (
       <div className="problem-screen">
-        <Avatar />
+        <Avatar name="Bella" emotion="sad" isTalking={false} />
         <div className="problem-container">
           <div className="error-message">
             <h2>Error rendering problem screen</h2>
