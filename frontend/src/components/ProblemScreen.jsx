@@ -11,6 +11,69 @@ const ProblemScreen = () => {
   const [problemData, setProblemData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [code, setCode] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState('python');
+  const [executing, setExecuting] = useState(false);
+  const [executionResults, setExecutionResults] = useState(null);
+
+  // Programming language configurations
+  const languages = {
+    python: {
+      name: 'Python',
+      extension: 'py',
+      starterCode: `def solution(nums, target):
+    # Your code here
+    pass`,
+      languageId: 71
+    },
+    javascript: {
+      name: 'JavaScript',
+      extension: 'js',
+      starterCode: `function solution(nums, target) {
+    // Your code here
+    
+}`,
+      languageId: 63
+    },
+    java: {
+      name: 'Java',
+      extension: 'java',
+      starterCode: `class Solution {
+    public int[] solution(int[] nums, int target) {
+        // Your code here
+        return new int[0];
+    }
+}`,
+      languageId: 62
+    },
+    cpp: {
+      name: 'C++',
+      extension: 'cpp',
+      starterCode: `class Solution {
+public:
+    vector<int> solution(vector<int>& nums, int target) {
+        // Your code here
+        return {};
+    }
+};`,
+      languageId: 54
+    },
+    c: {
+      name: 'C',
+      extension: 'c',
+      starterCode: `int* solution(int* nums, int numsSize, int target, int* returnSize) {
+    // Your code here
+    *returnSize = 0;
+    return NULL;
+}`,
+      languageId: 50
+    }
+  };
+
+  // Initialize code with starter code when language changes
+  useEffect(() => {
+    setCode(languages[selectedLanguage].starterCode);
+  }, [selectedLanguage]);
 
   useEffect(() => {
     const fetchProblem = async () => {
@@ -59,8 +122,11 @@ const ProblemScreen = () => {
         const response = await fetch(`http://localhost:5002/api/leetcode/${problemSlug}`);
         const result = await response.json();
         
+        console.log('Fetched problem data:', result);
+        
         if (result.status === 'success') {
           setProblemData(result.data);
+          console.log('Set problemData:', result.data);
         } else {
           setError(result.message);
         }
@@ -74,6 +140,59 @@ const ProblemScreen = () => {
 
     fetchProblem();
   }, [topic, choice]);
+
+  const handleExecuteCode = async () => {
+    if (!code.trim()) {
+      alert('Please write some code first!');
+      return;
+    }
+
+    setExecuting(true);
+    setExecutionResults(null);
+
+    const requestData = {
+      code: code,
+      language: selectedLanguage,
+      languageId: languages[selectedLanguage].languageId,
+      testCases: displayProblem.testCases || []
+    };
+
+    console.log('Sending request:', requestData);
+    console.log('displayProblem:', displayProblem);
+
+    try {
+      const response = await fetch('http://localhost:5002/api/leetcode/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      const result = await response.json();
+      console.log('Received response:', result);
+
+      if (result.status === 'success') {
+        setExecutionResults(result);
+        if (result.allPassed) {
+          setIsSolved(true);
+        }
+      } else {
+        setExecutionResults({
+          status: 'error',
+          message: result.message
+        });
+      }
+    } catch (err) {
+      console.error('Error executing code:', err);
+      setExecutionResults({
+        status: 'error',
+        message: 'Failed to execute code: ' + err.message
+      });
+    } finally {
+      setExecuting(false);
+    }
+  };
 
   const handleSolve = () => {
     setIsSolved(true);
@@ -190,15 +309,39 @@ You can return the answer in any order.`,
 
             <div className="problem-right">
               <div className="code-editor">
-                <h3>Your Solution</h3>
+                <div className="editor-header">
+                  <h3>Your Solution</h3>
+                  <div className="language-selector">
+                    <label htmlFor="language-select">Language: </label>
+                    <select 
+                      id="language-select"
+                      value={selectedLanguage} 
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      className="language-dropdown"
+                    >
+                      {Object.entries(languages).map(([key, lang]) => (
+                        <option key={key} value={key}>{lang.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <div className="editor-container">
                   <textarea 
                     className="code-input"
                     placeholder="// Write your solution here..."
                     rows={15}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
                   />
                 </div>
                 <div className="editor-actions">
+                  <button 
+                    className="run-button"
+                    onClick={handleExecuteCode}
+                    disabled={executing || isSolved}
+                  >
+                    {executing ? 'Running...' : 'Run Code'}
+                  </button>
                   <button 
                     className="solve-button"
                     onClick={handleSolve}
@@ -208,6 +351,51 @@ You can return the answer in any order.`,
                   </button>
                 </div>
               </div>
+
+              {executionResults && (
+                <div className="execution-results">
+                  <h3>Execution Results</h3>
+                  
+                  {/* Code Output Section */}
+                  <div className="code-output-section">
+                    <h4>Code Output:</h4>
+                    <div className="code-output">
+                      <pre>{executionResults.codeOutput || 'No output'}</pre>
+                    </div>
+                  </div>
+
+                  {/* Test Results Section */}
+                  <div className="test-results-section">
+                    <h4>Test Results:</h4>
+                    {executionResults.status === 'error' ? (
+                      <div className="error-result">
+                        <p><strong>Error:</strong> {executionResults.message}</p>
+                      </div>
+                    ) : (
+                      <div className="test-results">
+                        <div className={`result-summary ${executionResults.allPassed ? 'passed' : 'failed'}`}>
+                          {executionResults.allPassed ? '✅ All tests passed!' : '❌ Some tests failed'}
+                        </div>
+                        {executionResults.results && executionResults.results.map((result, index) => (
+                          <div key={index} className={`test-case ${result.passed ? 'passed' : 'failed'}`}>
+                            <div className="test-header">
+                              <strong>Test Case {result.testCase}:</strong>
+                              <span className={`status ${result.passed ? 'passed' : 'failed'}`}>
+                                {result.passed ? '✅ PASS' : '❌ FAIL'}
+                              </span>
+                            </div>
+                            <div className="test-details">
+                              <div><strong>Input:</strong> <code>{result.input}</code></div>
+                              <div><strong>Expected:</strong> <code>{result.expectedOutput}</code></div>
+                              <div><strong>Actual:</strong> <code>{result.actualOutput}</code></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {isSolved && (
                 <div className="success-message">
