@@ -273,6 +273,27 @@
 
 .editor-container {
   margin-bottom: 1rem;
+  min-height: 400px;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Monaco Editor specific styles */
+.monaco-editor {
+  border-radius: 8px;
+}
+
+.monaco-editor .margin {
+  background-color: #1a1a1a !important;
+}
+
+.monaco-editor .monaco-editor-background {
+  background-color: #1a1a1a !important;
+}
+
+.monaco-editor .view-lines {
+  background-color: #1a1a1a !important;
 }
 
 .code-input {

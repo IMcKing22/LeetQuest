@@ -5,6 +5,118 @@ import requests
 import time
 from leetscrape import GetQuestion, GetQuestionsList
 
+def get_problem_signature(problem_slug, language):
+    """Get proper function signature for each problem"""
+    signatures = {
+        'two-sum': {
+            'python': 'def solution(nums: List[int], target: int) -> List[int]:',
+            'javascript': 'function solution(nums, target) {',
+            'java': 'public int[] solution(int[] nums, int target) {',
+            'cpp': 'vector<int> solution(vector<int>& nums, int target) {',
+            'c': 'int* solution(int* nums, int numsSize, int target, int* returnSize) {'
+        },
+        'container-with-most-water': {
+            'python': 'def solution(height: List[int]) -> int:',
+            'javascript': 'function solution(height) {',
+            'java': 'public int solution(int[] height) {',
+            'cpp': 'int solution(vector<int>& height) {',
+            'c': 'int solution(int* height, int heightSize) {'
+        },
+        'longest-substring-without-repeating-characters': {
+            'python': 'def solution(s: str) -> int:',
+            'javascript': 'function solution(s) {',
+            'java': 'public int solution(String s) {',
+            'cpp': 'int solution(string s) {',
+            'c': 'int solution(char* s) {'
+        },
+        'valid-parentheses': {
+            'python': 'def solution(s: str) -> bool:',
+            'javascript': 'function solution(s) {',
+            'java': 'public boolean solution(String s) {',
+            'cpp': 'bool solution(string s) {',
+            'c': 'bool solution(char* s) {'
+        },
+        'binary-search': {
+            'python': 'def solution(nums: List[int], target: int) -> int:',
+            'javascript': 'function solution(nums, target) {',
+            'java': 'public int solution(int[] nums, int target) {',
+            'cpp': 'int solution(vector<int>& nums, int target) {',
+            'c': 'int solution(int* nums, int numsSize, int target) {'
+        },
+        'add-two-numbers': {
+            'python': 'def solution(l1: Optional[ListNode], l2: Optional[ListNode]) -> Optional[ListNode]:',
+            'javascript': 'function solution(l1, l2) {',
+            'java': 'public ListNode solution(ListNode l1, ListNode l2) {',
+            'cpp': 'ListNode* solution(ListNode* l1, ListNode* l2) {',
+            'c': 'struct ListNode* solution(struct ListNode* l1, struct ListNode* l2) {'
+        },
+        'binary-tree-inorder-traversal': {
+            'python': 'def solution(root: Optional[TreeNode]) -> List[int]:',
+            'javascript': 'function solution(root) {',
+            'java': 'public List<Integer> solution(TreeNode root) {',
+            'cpp': 'vector<int> solution(TreeNode* root) {',
+            'c': 'int* solution(struct TreeNode* root, int* returnSize) {'
+        },
+        'kth-largest-element-in-an-array': {
+            'python': 'def solution(nums: List[int], k: int) -> int:',
+            'javascript': 'function solution(nums, k) {',
+            'java': 'public int solution(int[] nums, int k) {',
+            'cpp': 'int solution(vector<int>& nums, int k) {',
+            'c': 'int solution(int* nums, int numsSize, int k) {'
+        },
+        'letter-combinations-of-a-phone-number': {
+            'python': 'def solution(digits: str) -> List[str]:',
+            'javascript': 'function solution(digits) {',
+            'java': 'public List<String> solution(String digits) {',
+            'cpp': 'vector<string> solution(string digits) {',
+            'c': 'char** solution(char* digits, int* returnSize) {'
+        },
+        'number-of-islands': {
+            'python': 'def solution(grid: List[List[str]]) -> int:',
+            'javascript': 'function solution(grid) {',
+            'java': 'public int solution(char[][] grid) {',
+            'cpp': 'int solution(vector<vector<char>>& grid) {',
+            'c': 'int solution(char** grid, int gridSize, int* gridColSize) {'
+        },
+        'climbing-stairs': {
+            'python': 'def solution(n: int) -> int:',
+            'javascript': 'function solution(n) {',
+            'java': 'public int solution(int n) {',
+            'cpp': 'int solution(int n) {',
+            'c': 'int solution(int n) {'
+        },
+        'unique-paths': {
+            'python': 'def solution(m: int, n: int) -> int:',
+            'javascript': 'function solution(m, n) {',
+            'java': 'public int solution(int m, int n) {',
+            'cpp': 'int solution(int m, int n) {',
+            'c': 'int solution(int m, int n) {'
+        },
+        'jump-game': {
+            'python': 'def solution(nums: List[int]) -> bool:',
+            'javascript': 'function solution(nums) {',
+            'java': 'public boolean solution(int[] nums) {',
+            'cpp': 'bool solution(vector<int>& nums) {',
+            'c': 'bool solution(int* nums, int numsSize) {'
+        },
+        'merge-intervals': {
+            'python': 'def solution(intervals: List[List[int]]) -> List[List[int]]:',
+            'javascript': 'function solution(intervals) {',
+            'java': 'public int[][] solution(int[][] intervals) {',
+            'cpp': 'vector<vector<int>> solution(vector<vector<int>>& intervals) {',
+            'c': 'int** solution(int** intervals, int intervalsSize, int* intervalsColSize, int* returnSize, int** returnColumnSizes) {'
+        },
+        'rotate-image': {
+            'python': 'def solution(matrix: List[List[int]]) -> None:',
+            'javascript': 'function solution(matrix) {',
+            'java': 'public void solution(int[][] matrix) {',
+            'cpp': 'void solution(vector<vector<int>>& matrix) {',
+            'c': 'void solution(int** matrix, int matrixSize, int* matrixColSize) {'
+        }
+    }
+    
+    return signatures.get(problem_slug, {}).get(language, 'def solution():')
+
 def get_default_test_cases(problem_slug):
     """Generate default test cases for common LeetCode problems"""
     test_cases_map = {

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import Editor from '@monaco-editor/react';
 import Avatar from './Avatar';
 import './ProblemScreen.css';
 
@@ -15,6 +16,7 @@ const ProblemScreen = () => {
   const [selectedLanguage, setSelectedLanguage] = useState('python');
   const [executing, setExecuting] = useState(false);
   const [executionResults, setExecutionResults] = useState(null);
+  const editorRef = useRef(null);
 
   console.log('ProblemScreen rendered with:', { topic, choice, loading, error, problemData });
 
@@ -46,7 +48,9 @@ You can return the answer in any order.`,
     const title = (problemTitle || 'Two Sum').toLowerCase();
     
     if (title.includes('two sum')) {
-      if (language === 'python') return `def solution(nums, target):
+      if (language === 'python') return `from typing import List
+
+def solution(nums: List[int], target: int) -> List[int]:
     # Your code here
     pass`;
       if (language === 'javascript') return `function solution(nums, target) {
@@ -74,7 +78,9 @@ public:
     }
     
     if (title.includes('container') || title.includes('water')) {
-      if (language === 'python') return `def solution(height):
+      if (language === 'python') return `from typing import List
+
+def solution(height: List[int]) -> int:
     # Your code here
     pass`;
       if (language === 'javascript') return `function solution(height) {
@@ -97,7 +103,7 @@ public:
     }
     
     if (title.includes('longest') || title.includes('substring')) {
-      if (language === 'python') return `def solution(s):
+      if (language === 'python') return `def solution(s: str) -> int:
     # Your code here
     pass`;
       if (language === 'javascript') return `function solution(s) {
@@ -120,7 +126,7 @@ public:
     }
     
     if (title.includes('valid') || title.includes('parentheses')) {
-      if (language === 'python') return `def solution(s):
+      if (language === 'python') return `def solution(s: str) -> bool:
     # Your code here
     pass`;
       if (language === 'javascript') return `function solution(s) {
@@ -143,7 +149,9 @@ public:
     }
     
     if (title.includes('binary search')) {
-      if (language === 'python') return `def solution(nums, target):
+      if (language === 'python') return `from typing import List
+
+def solution(nums: List[int], target: int) -> int:
     # Your code here
     pass`;
       if (language === 'javascript') return `function solution(nums, target) {
@@ -352,23 +360,55 @@ public:
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = e.target;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const value = textarea.value;
-      
-      // Insert tab character
-      const newValue = value.substring(0, start) + '    ' + value.substring(end);
-      setCode(newValue);
-      
-      // Set cursor position after the inserted tab
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + 4;
-      }, 0);
-    }
+  const handleEditorDidMount = (editor, monaco) => {
+    editorRef.current = editor;
+    
+    // Configure editor options
+    editor.updateOptions({
+      fontSize: 14,
+      fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+      lineNumbers: 'on',
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      tabSize: 4,
+      insertSpaces: true,
+      wordWrap: 'on',
+      bracketPairColorization: { enabled: true },
+      guides: {
+        bracketPairs: true,
+        indentation: true
+      }
+    });
+
+    // Add keyboard shortcuts
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Slash, () => {
+      editor.trigger('keyboard', 'editor.action.commentLine', {});
+    });
+
+    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Tab, () => {
+      editor.trigger('keyboard', 'editor.action.outdentLines', {});
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyA, () => {
+      editor.trigger('keyboard', 'editor.action.selectAll', {});
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      // Save functionality - could be used for auto-save
+      console.log('Save triggered');
+    });
+  };
+
+  const getLanguageForMonaco = (language) => {
+    const languageMap = {
+      'python': 'python',
+      'javascript': 'javascript',
+      'java': 'java',
+      'cpp': 'cpp',
+      'c': 'c'
+    };
+    return languageMap[language] || 'python';
   };
 
   const handleSolve = async () => {
@@ -533,14 +573,41 @@ public:
                   </div>
                 </div>
                 <div className="editor-container">
-                  <textarea 
-                    className="code-input"
-                    placeholder="// Write your solution here..."
-                    rows={15}
+                  <Editor
+                    height="400px"
+                    language={getLanguageForMonaco(selectedLanguage)}
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    spellCheck={false}
+                    onChange={(value) => setCode(value || '')}
+                    onMount={handleEditorDidMount}
+                    theme="vs-dark"
+                    options={{
+                      selectOnLineNumbers: true,
+                      roundedSelection: false,
+                      readOnly: false,
+                      cursorStyle: 'line',
+                      automaticLayout: true,
+                      mouseWheelZoom: true,
+                      contextmenu: true,
+                      folding: true,
+                      foldingStrategy: 'indentation',
+                      showFoldingControls: 'always',
+                      unfoldOnClickAfterEnd: false,
+                      lineDecorationsWidth: 0,
+                      lineNumbersMinChars: 3,
+                      glyphMargin: false,
+                      renderLineHighlight: 'all',
+                      renderWhitespace: 'selection',
+                      scrollbar: {
+                        vertical: 'auto',
+                        horizontal: 'auto',
+                        useShadows: false,
+                        verticalHasArrows: true,
+                        horizontalHasArrows: true,
+                        verticalScrollbarSize: 17,
+                        horizontalScrollbarSize: 17,
+                        arrowSize: 30
+                      }
+                    }}
                   />
                 </div>
                 <div className="editor-actions">
