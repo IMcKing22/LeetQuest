@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from responses_api.build import start_story
 from responses_api.bridge import path_bridge, description_former_bridge, description_latter_bridge, journey_bridge
+from openai import OpenAI
 try:
     from leetscrape import GetQuestion, GetQuestionsList  # Optional: may not be installed
 except Exception:
@@ -113,7 +114,7 @@ def get_problem_signature(problem_slug, language):
     """Get proper function signature for each problem"""
     signatures = {
         'two-sum': {
-            'python': 'def solution(nums):',
+            'python': 'def solution(nums: List[int], target: int) -> List[int]:',
             'javascript': 'function solution(nums, target) {',
             'java': 'public int[] solution(int[] nums, int target) {',
             'cpp': 'vector<int> solution(vector<int>& nums, int target) {',
@@ -235,6 +236,24 @@ def get_problem_signature(problem_slug, language):
     
     return signatures.get(problem_slug, {}).get(language, 'def solution():')
 
+def normalize_python_signature(signature):
+    """Ensure Python signatures include required typing imports when using List/Optional/etc."""
+    try:
+        if not signature or not isinstance(signature, str):
+            return signature
+        needs = []
+        has_typing_import = ('from typing' in signature) or ('import typing' in signature)
+        if 'List[' in signature and not has_typing_import:
+            needs.append('List')
+        if 'Optional[' in signature and not has_typing_import:
+            needs.append('Optional')
+        if needs:
+            prefix = f"from typing import {', '.join(sorted(set(needs)))}\n\n"
+            return prefix + signature
+        return signature
+    except Exception:
+        return signature
+
 def get_default_problem_data(problem_slug):
     """Generate default problem data for common LeetCode problems"""
     problems_map = {
@@ -333,9 +352,9 @@ def get_default_test_cases(problem_slug, problem_title=None):
     """Generate default test cases for common LeetCode problems"""
     test_cases_map = {
         'two-sum': [
-            {'input': 'nums = [2,7,11,15], target = 9', 'output': '[0, 1]', 'explanation': 'Because nums[0] + nums[1] == 9, we return [0, 1].'},
-            {'input': 'nums = [3,2,4], target = 6', 'output': '[1, 2]', 'explanation': 'Because nums[1] + nums[2] == 6, we return [1, 2].'},
-            {'input': 'nums = [3,3], target = 6', 'output': '[0, 1]', 'explanation': 'Because nums[0] + nums[1] == 6, we return [0, 1].'}
+            {'input': 'nums = [2,7,11,15], target = 9', 'output': '[0,1]', 'explanation': 'Because nums[0] + nums[1] == 9, we return [0,1].'},
+            {'input': 'nums = [3,2,4], target = 6', 'output': '[1,2]', 'explanation': 'Because nums[1] + nums[2] == 6, we return [1,2].'},
+            {'input': 'nums = [3,3], target = 6', 'output': '[0,1]', 'explanation': 'Because nums[0] + nums[1] == 6, we return [0,1].'}
         ],
         'container-with-most-water': [
             {'input': 'height = [1,8,6,2,5,4,8,3,7]', 'output': '49', 'explanation': 'The above vertical lines are represented by array [1,8,6,2,5,4,8,3,7]. In this case, the max area of water (blue section) the container can contain is 49.'},
@@ -500,10 +519,51 @@ CORS(app, resources={
 problems_cache = None
 
 SESSIONS = {} # temp session memory store
+OPENAI_CLIENT = OpenAI(api_key=os.getenv('OPENAI_API_KEY')) if os.getenv('OPENAI_API_KEY') else None
+
+def get_openai_client():
+    """Return a live OpenAI client if an API key is currently available.
+    This allows swapping keys at runtime without restarting the server."""
+    global OPENAI_CLIENT
+    try:
+        key = os.getenv('OPENAI_API_KEY')
+        if key and OPENAI_CLIENT is None:
+            OPENAI_CLIENT = OpenAI(api_key=key)
+        elif not key:
+            OPENAI_CLIENT = None
+    except Exception:
+        OPENAI_CLIENT = None
+    return OPENAI_CLIENT
+
+def _mock_bella_review_for(code: str, language: str) -> str:
+    try:
+        lines = code.split('\n') if code else []
+        msg = ["Let me review your code! 👀"]
+        src = code.lower()
+        if 'two sum' in src or 'two-sum' in src or 'target' in src:
+            msg.append("Consider using a hash map to reach O(n) time for Two Sum.")
+        if any(('for ' in l and 'for ' in lines[i+1] if i+1 < len(lines) else False) for i,l in enumerate(lines)):
+            msg.append("I noticed nested loops; check if a linear-time approach is possible.")
+        if 'print(' in src:
+            msg.append("Avoid debug prints in final submissions; return values instead.")
+        if language == 'python' and 'def solution(' not in code:
+            msg.append("Define a function named solution matching the required signature.")
+        if not any(k in src for k in ['return', 'yield']):
+            msg.append("Your function never returns a value; add a return statement.")
+        if len(msg) < 4:
+            msg.append("Add edge-case checks (empty input, single element, negative numbers).")
+        return "\n".join(msg[:6])
+    except Exception:
+        return (
+            "Let me review your code! \n"
+            "Consider a clearer approach and ensure the function signature and return value are correct."
+        )
 # ============= AI Integration Routes =============
 @app.post("/api/start")
 def api_start():
-    topic = (request.get_json(silent=True) or {}).get("topic", "coding challenges")
+    j = request.get_json(silent=True) or {}
+    topic = j.get("topic", "coding challenges")
+    # If OpenAI key is present, generate; otherwise return creative fallback
     res = start_story(topic, generate_art=False)
 
     sid = str(uuid4())
@@ -526,22 +586,78 @@ def api_choices():
     j = request.get_json(silent=True) or {}
     topic = j.get("topic", "Arrays & Hashing")
     choice = j.get("choice", "path1")
+    session_id = j.get("sessionId")
     
-    # Generate creative path titles and descriptions
+    # If session provided, enrich with journey and generate both titles/descriptions
+    if session_id and session_id in SESSIONS:
+        base = SESSIONS[session_id]["base_text"]
+        former_title = path_bridge(f"{topic} approach A").strip()
+        latter_title = path_bridge(f"{topic} approach B").strip()
+        former_desc  = description_former_bridge(base).strip()
+        latter_desc  = description_latter_bridge(base).strip()
+        journey      = journey_bridge(base).strip()
+        # Keep compatibility with existing frontend that calls per choice
+        if choice == "path1":
+            return jsonify({"journey": journey, "path1Title": former_title, "path1Description": former_desc})
+        else:
+            return jsonify({"journey": journey, "path2Title": latter_title, "path2Description": latter_desc})
+    
+    # No session – generate per choice using the topic only
     if choice == "path1":
         former_title = path_bridge(f"{topic} approach A").strip()
         former_desc = description_former_bridge(f"{topic} systematic approach").strip()
-        return jsonify({
-            "path1Title": former_title,
-            "path1Description": former_desc,
-        })
+        return jsonify({"path1Title": former_title, "path1Description": former_desc})
     else:
         latter_title = path_bridge(f"{topic} approach B").strip()
         latter_desc = description_latter_bridge(f"{topic} creative approach").strip()
-        return jsonify({
-            "path2Title": latter_title,
-            "path2Description": latter_desc,
-        })
+        return jsonify({"path2Title": latter_title, "path2Description": latter_desc})
+
+@app.post("/api/bella/review")
+def api_bella_review():
+    j = request.get_json(silent=True) or {}
+    code = j.get("code", "")
+    language = j.get("language", "python")
+    if not code:
+        return jsonify({"status": "error", "message": "No code provided"}), 400
+    if get_openai_client() is None:
+        # Mock review if no key
+        return jsonify({"status": "success", "review": _mock_bella_review_for(code, language)})
+    try:
+        res = get_openai_client().responses.create(
+            model="gpt-5",
+            instructions=(
+                "You are Bella, a friendly code reviewer. Analyze the LeetCode solution and explain what is wrong in 3-5 short chunks. "
+                "Each chunk 1-2 sentences. Be encouraging. Include code snippets when helpful."
+            ),
+            input=f"Language: {language}\n\n{code}"
+        )
+        text = getattr(res, "output_text", "")
+        return jsonify({"status": "success", "review": text})
+    except Exception as e:
+        # On quota or other API errors, return heuristic review so UX continues
+        return jsonify({"status": "success", "review": _mock_bella_review_for(code, language), "fallback": True, "error": str(e)}), 200
+
+@app.post("/api/bella/chat")
+def api_bella_chat():
+    j = request.get_json(silent=True) or {}
+    user_message = j.get("message", "")
+    if not user_message:
+        return jsonify({"status": "error", "message": "No message provided"}), 400
+    if get_openai_client() is None:
+        return jsonify({"status": "success", "message": "I’m in fallback mode. Ask about strategy, edge cases, or complexity and I’ll share tips without calling the API."})
+    try:
+        res = get_openai_client().responses.create(
+            model="gpt-5",
+            instructions=(
+                "You are Bella, a concise, friendly coding assistant helping with LeetCode problems."
+            ),
+            input=user_message
+        )
+        text = getattr(res, "output_text", "")
+        return jsonify({"status": "success", "message": text})
+    except Exception as e:
+        # Graceful fallback message when quota is hit
+        return jsonify({"status": "success", "message": "I’m currently out of API quota. Meanwhile, describe your approach and I’ll suggest improvements (hash maps, two pointers, sliding window, or DP where applicable).", "fallback": True, "error": str(e)}), 200
 
 # example continue route
 @app.post("/api/continue")
@@ -647,16 +763,36 @@ def get_leetcode_problem(problem_slug):
             # Try to get function signature from our predefined signatures
             function_signature = None
             try:
-                function_signature = get_problem_signature(problem_slug, 'python')
+                function_signature = normalize_python_signature(get_problem_signature(problem_slug, 'python'))
             except Exception as e:
                 print(f"Could not get function signature for {problem_slug}: {e}")
                 function_signature = None
+            
+            # Try to obtain rich HTML description
+            content_html = None
+            try:
+                if GetQuestion is not None:
+                    q = GetQuestion(titleSlug=problem_slug).scrape()
+                    body = getattr(q, 'Body', None)
+                    if body and isinstance(body, str) and len(body) > 50:
+                        content_html = body
+            except Exception as _e:
+                content_html = None
+            
+            # If no scraper content, try our built-in defaults for a few common problems
+            if not content_html:
+                try:
+                    built_in = get_default_problem_data(problem_slug)
+                    if built_in and isinstance(built_in, dict) and built_in.get('content'):
+                        content_html = built_in['content']
+                except Exception:
+                    content_html = None
             
             # Convert CSV data to expected format
             problem_data = {
                 'title': problem.get('title', 'Unknown Title'),
                 'difficulty': problem.get('difficulty', 'Unknown').title(),
-                'content': f"<p>Problem: {problem.get('title', 'Unknown')}</p><p>Topic: {problem.get('topic', 'Unknown')}</p><p>Tags: {tags if tags else 'None'}</p>",
+                'content': content_html or f"<p>Problem: {problem.get('title', 'Unknown')}</p><p>Topic: {problem.get('topic', 'Unknown')}</p><p>Tags: {tags if tags else 'None'}</p>",
                 'testCases': get_default_test_cases(problem_slug, problem.get('title', '')),  # Use proper test cases
                 'topicTags': topic_tags,
                 'url': problem.get('url', ''),
@@ -668,7 +804,7 @@ def get_leetcode_problem(problem_slug):
             problem_data = get_default_problem_data(problem_slug)
             # Always ensure default has test cases and a basic function signature
             if 'functionSignature' not in problem_data:
-                problem_data['functionSignature'] = get_problem_signature(problem_slug, 'python')
+                problem_data['functionSignature'] = normalize_python_signature(get_problem_signature(problem_slug, 'python'))
         
         return jsonify({
             'status': 'success',
@@ -1081,13 +1217,28 @@ def submit_to_judge0(code, language_id=71):
 
 def normalize_output(output):
     """Normalize output for comparison (e.g., True -> true, False -> false)"""
+    if output is None:
+        return "null"
+    if isinstance(output, (dict, list)):
+        try:
+            import json
+            return json.dumps(output, separators=(',',':'))
+        except Exception:
+            pass
     if output == "True":
         return "true"
     elif output == "False":
         return "false"
     elif output == "None":
         return "null"
-    return output
+    # Collapse whitespace and remove spaces inside simple JSON arrays for consistent compare
+    try:
+        s = str(output).strip()
+        if s.startswith('[') and s.endswith(']'):
+            s = s.replace(' ', '')
+        return s
+    except Exception:
+        return output
 
 def parse_input_string(input_str):
     """Parse input string like 'nums = [2,7,11,15], target = 9' into Python objects"""

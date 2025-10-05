@@ -9,6 +9,7 @@ const ChoiceScreen = () => {
   const { topic } = location.state || {};
   
   const [story, setStory] = useState('');
+  const [sessionId, setSessionId] = useState(null);
   const [path1, setPath1] = useState({ title: 'Path of Efficiency', description: 'Focus on optimal time and space complexity.' });
   const [path2, setPath2] = useState({ title: 'Path of Elegance', description: 'Embrace clean, readable code.' });
   const [loading, setLoading] = useState(true);
@@ -84,6 +85,9 @@ Which path will you choose to begin your epic journey?`;
           const storyResponse = await Promise.race([storyPromise, storyTimeout]);
           if (storyResponse.ok) {
             const storyData = await storyResponse.json();
+            if (storyData.sessionId) {
+              setSessionId(storyData.sessionId);
+            }
             if (storyData.story && storyData.story.length > 50) {
               setStory(storyData.story);
             }
@@ -98,12 +102,12 @@ Which path will you choose to begin your epic journey?`;
             fetch('http://localhost:5002/api/choices', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ choice: 'path1', topic: topic?.name || 'Arrays & Hashing' })
+              body: JSON.stringify({ choice: 'path1', topic: topic?.name || 'Arrays & Hashing', sessionId })
             }),
             fetch('http://localhost:5002/api/choices', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ choice: 'path2', topic: topic?.name || 'Arrays & Hashing' })
+              body: JSON.stringify({ choice: 'path2', topic: topic?.name || 'Arrays & Hashing', sessionId })
             })
           ]);
           
@@ -141,7 +145,7 @@ Which path will you choose to begin your epic journey?`;
   }, [topic]);
 
   const handleChoice = (choice) => {
-    navigate('/problem', { state: { topic, choice } });
+    navigate('/problem', { state: { topic, choice, sessionId } });
   };
 
   if (loading) {

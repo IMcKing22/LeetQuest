@@ -7,7 +7,7 @@ import './ProblemScreen.css';
 const ProblemScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { topic, choice } = location.state || {};
+  const { topic, choice, sessionId } = location.state || {};
   const [isSolved, setIsSolved] = useState(false);
   const [problemData, setProblemData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,28 +112,13 @@ You can return the answer in any order.`,
 
   const reviewWithOpenAI = async (codeToReview) => {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('http://localhost:5002/api/bella/review', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{
-            role: 'system',
-            content: 'You are Bella, a friendly code reviewer. Analyze the LeetCode solution and explain what is wrong in 3-5 simple, short chunks. Each chunk should be 1-2 sentences. Be encouraging but point out issues clearly. If it is completely off track, point it out. Format code snippets on separate lines. Do not repeat yourself.'
-          }, {
-            role: 'user',
-            content: codeToReview
-          }],
-          temperature: 0.4
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeToReview, language: selectedLanguage })
       });
-      
       const data = await response.json();
-      const review = data.choices[0].message.content;
-      
+      const review = data.review || '';
       return parseReviewIntoChunks(review);
       
     } catch (error) {
@@ -991,33 +976,13 @@ public:
 
     try {
       let bellaResponse;
-      if (apiKey.trim()) {
-        // Use OpenAI for chat response
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{
-              role: 'system',
-              content: 'You are Bella, a friendly coding assistant. Help the user with their LeetCode problem. Be encouraging, helpful, and provide clear explanations. Keep responses concise but informative.'
-            }, {
-              role: 'user',
-              content: userMessage
-            }],
-            temperature: 0.7
-          })
-        });
-        
-        const data = await response.json();
-        bellaResponse = data.choices[0].message.content;
-      } else {
-        // Mock response for when no API key
-        bellaResponse = "I'd love to help you with that! However, I need an API key to provide personalized assistance. For now, I can help with general coding tips and problem-solving strategies. What specific aspect of the problem would you like to discuss?";
-      }
+      const response = await fetch('http://localhost:5002/api/bella/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage })
+      });
+      const data = await response.json();
+      bellaResponse = data.message || 'Sorry, I had trouble responding.';
       
       // Add Bella's response to chat history
       setChatHistory([...newChatHistory, { type: 'bella', message: bellaResponse }]);
