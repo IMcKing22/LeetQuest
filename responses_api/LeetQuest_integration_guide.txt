@@ -1,0 +1,280 @@
+
+LeetQuest – Condensed Integration Guide (Backend <-> Frontend)
+==============================================================
+
+Goal
+----
+1) Start the first OpenAI story prompt **only after** the user clicks a coding topic.
+2) Bind “Path of ___” titles + descriptions to your bridge outputs.
+3) Bind “Journey so far” to the journey bridge.
+4) Keep Stable Diffusion wiring untouched.
+5) Minimal changes to existing React files.
+
+High-Level Flow
+---------------
+TopicSelection.jsx  →  StoryScreen.jsx  →  ChoiceScreen.jsx
+      (user picks)       (fetch /api/start)    (fetch /api/choices)
+
+Backend returns:
+- /api/start: { sessionId, conversationId, story }
+- /api/choices: { journey, former{title,description}, latter{title,description} }
+
+A) BACKEND – Minimal HTTP API
+-----------------------------
+
+Create **api.py** (Flask). It wraps your existing bridge functions and a first OpenAI call.
+
+Requirements:
+    pip install flask python-dotenv openai
+
+api.py
+------
+from flask import Flask, request, jsonify
+from uuid import uuid4
+from dotenv import load_dotenv
+from openai import OpenAI
+
+# your modules
+import bridge           # path_bridge, description_former_bridge, description_latter_bridge, journey_bridge
+import intermediary_interpreter
+import diffusion_build
+
+load_dotenv()
+client = OpenAI()
+app = Flask(__name__)
+
+SESSIONS = {}
+
+class StorySession:
+    def __init__(self, topic: str):
+        self.topic = topic
+        self.conversation = None
+        self.last_response = None
+
+    def start_story(self):
+        res = client.responses.create(
+            model="gpt-5",
+            instructions=(
+              "You are a storyteller for a choose-your-own-adventure about coding.\n"
+              "Write an intro scene themed around the given TOPIC and end by inviting the player to choose a path.\n"
+              "Do NOT invent coding problems here; later screens will attach specific problems."
+            ),
+            input=f"TOPIC: {self.topic}. Write ~120–200 words."
+        )
+        self.conversation = res.conversation
+        self.last_response = res
+
+        # Optional: generate art; safe to ignore failures
+        try:
+            art_prompt = intermediary_interpreter.receive_input(res.output_text)
+            diffusion_build.generate_image(art_prompt)
+        except Exception:
+            pass
+
+        return {"story": res.output_text, "conversationId": self.conversation.id}
+
+    def choice_copy(self):
+        base = self.last_response.output_text if self.last_response else self.topic
+        former_title = bridge.path_bridge(f"{self.topic} approach A")
+        latter_title = bridge.path_bridge(f"{self.topic} approach B")
+        former_desc  = bridge.description_former_bridge(base)
+        latter_desc  = bridge.description_latter_bridge(base)
+        journey      = bridge.journey_bridge(base)
+        return {
+            "journey": journey.strip(),
+            "former": {"title": former_title.strip(), "description": former_desc.strip()},
+            "latter": {"title": latter_title.strip(), "description": latter_desc.strip()},
+        }
+
+@app.post("/api/start")
+def api_start():
+    topic = (request.json or {}).get("topic", "coding challenges")
+    sid = str(uuid4())
+    sess = StorySession(topic)
+    data = sess.start_story()
+    SESSIONS[sid] = sess
+    data["sessionId"] = sid
+    return jsonify(data)
+
+@app.post("/api/choices")
+def api_choices():
+    j = request.json or {}
+    sid = j.get("sessionId")
+    sess = SESSIONS.get(sid)
+    if not sess:
+        return jsonify({"error": "session not found"}), 404
+    return jsonify(sess.choice_copy())
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
+Run:
+    python api.py
+(If frontend runs on another port, set up a proxy or use full URL http://localhost:5000.)
+
+ENV:
+    .env should contain at least OPENAI_API_KEY (and REPLICATE_API_TOKEN if you use diffusion).
+    Use python-dotenv to load these.
+
+B) FRONTEND – Minimal Edits
+---------------------------
+
+TopicSelection.jsx – unchanged (it already navigates with the chosen topic).
+
+StoryScreen.jsx – fetch first prompt on mount, then pass sessionId forward
+-------------------------------------------------------------------------
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import Avatar from './Avatar';
+import './StoryScreen.css';
+
+const StoryScreen = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { topic } = location.state || {};
+  const [loading, setLoading] = useState(true);
+  const [sessionId, setSessionId] = useState(null);
+  const [story, setStory] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/start', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ topic: topic?.name || 'coding challenges' }),
+      signal: controller.signal
+    })
+    .then(r => r.json())
+    .then(data => {
+      setStory(data.story || "Your adventure begins…");
+      setSessionId(data.sessionId);
+    })
+    .catch(() => setStory("Your adventure begins…"))
+    .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [topic]);
+
+  const handleMakeChoice = () => {
+    navigate('/choice', { state: { topic, sessionId } });
+  };
+
+  return (
+    <div className="story-screen">
+      <Avatar />
+      <div className="story-container">
+        <div className="story-box">
+          <h2>Welcome to {topic?.name || 'Your Adventure'}!</h2>
+          <div className="story-content">
+            <p>{loading ? "Summoning your quest..." : story}</p>
+          </div>
+          <button className="next-button" onClick={handleMakeChoice} disabled={loading}>
+            Make Your Choice
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+export default StoryScreen;
+
+ChoiceScreen.jsx – fetch bridge text on mount & bind UI
+-------------------------------------------------------
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import Avatar from './Avatar';
+import './ChoiceScreen.css';
+
+const ChoiceScreen = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { topic, sessionId } = location.state || {};
+
+  const [loading, setLoading] = useState(true);
+  const [copy, setCopy] = useState({ journey: "", former:{}, latter:{} });
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const controller = new AbortController();
+    fetch('/api/choices', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ sessionId, topic: topic?.name }),
+      signal: controller.signal
+    })
+      .then(r => r.json())
+      .then(data => setCopy(data))
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [sessionId, topic]);
+
+  const handleChoice = (choice) => {
+    navigate('/problem', { state: { topic, choice, sessionId, copy } });
+  };
+
+  const formerTitle = loading ? "Path of …" : (copy.former?.title || "Path of Efficiency");
+  const formerDesc  = loading ? "Loading..." : (copy.former?.description || "");
+  const latterTitle = loading ? "Path of …" : (copy.latter?.title || "Path of Elegance");
+  const latterDesc  = loading ? "Loading..." : (copy.latter?.description || "");
+  const journeyText = loading ? "Forging your path..." : (copy.journey || "");
+
+  return (
+    <div className="choice-screen">
+      <Avatar />
+      <div className="choice-container">
+        <div className="story-sidebar">
+          <div className="story-box">
+            <h3>Your Journey So Far</h3>
+            <p>{journeyText}</p>
+          </div>
+        </div>
+        <div className="choice-main">
+          <div className="choice-box">
+            <h2>Choose Your Path</h2>
+            <div className="choices">
+              <button className="choice-button" onClick={() => handleChoice('former')} disabled={loading}>
+                <div className="choice-icon">⚡</div>
+                <div className="choice-content">
+                  <h3>{formerTitle}</h3>
+                  <p>{formerDesc}</p>
+                </div>
+              </button>
+              <button className="choice-button" onClick={() => handleChoice('latter')} disabled={loading}>
+                <div className="choice-icon">✨</div>
+                <div className="choice-content">
+                  <h3>{latterTitle}</h3>
+                  <p>{latterDesc}</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+export default ChoiceScreen;
+
+C) Optional – Prefetch / Proxy / Fallback
+-----------------------------------------
+• Prefetch: call /api/start before navigating to StoryScreen and pass the JSON via router state to display instantly.
+• Proxy (Vite): vite.config.js
+    export default defineConfig({
+      server: { proxy: { '/api': 'http://localhost:5000' } }
+    });
+• Fallback: keep the "Loading..." placeholders so the UI doesn't outrun the AI.
+
+D) Test Plan
+------------
+1) Start backend: python api.py
+2) Start frontend: npm run dev (ensure proxy)
+3) Click a topic → StoryScreen shows loading then AI intro text.
+4) Click "Make Your Choice" → ChoiceScreen shows loading then bridge text.
+5) Confirm diffusion still runs (optional).
+
+E) Troubleshooting
+------------------
+• 404 → check proxy or use full URL http://localhost:5000/api/...
+• Missing OPENAI_API_KEY → put in .env; python-dotenv loads it.
+• Replicate token flakiness → read from .env inside Python, not the shell env.
+
+-- end --
