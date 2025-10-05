@@ -613,7 +613,6 @@ def api_story_hard_completion():
         "conversationId": res.get("conversation_id"),
         "responseId": res.get("response_id"),
     })
-
 # ============== LeetCode API Routes ==============
 
 @app.route('/api/leetcode/<problem_slug>', methods=['GET'])
