@@ -23,7 +23,10 @@ const ProblemScreen = () => {
   const [bellaIsTalking, setBellaIsTalking] = useState(false);
   const [speechBubble, setSpeechBubble] = useState({ visible: false, messages: [] });
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
+  const [chatBoxOpen, setChatBoxOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
 
   console.log('ProblemScreen rendered with:', { topic, choice, loading, error, problemData });
 
@@ -615,6 +618,70 @@ public:
     }
   };
 
+  const nextMessage = () => {
+    if (currentMessageIndex < speechBubble.messages.length - 1) {
+      setCurrentMessageIndex(currentMessageIndex + 1);
+    }
+  };
+
+  const handleChatSubmit = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    
+    // Add user message to chat history
+    const newChatHistory = [...chatHistory, { type: 'user', message: userMessage }];
+    setChatHistory(newChatHistory);
+    
+    setBellaEmotion('thinking');
+    setBellaIsTalking(true);
+
+    try {
+      let bellaResponse;
+      if (apiKey.trim()) {
+        // Use OpenAI for chat response
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{
+              role: 'system',
+              content: 'You are Bella, a friendly coding assistant. Help the user with their LeetCode problem. Be encouraging, helpful, and provide clear explanations. Keep responses concise but informative.'
+            }, {
+              role: 'user',
+              content: userMessage
+            }],
+            temperature: 0.7
+          })
+        });
+        
+        const data = await response.json();
+        bellaResponse = data.choices[0].message.content;
+      } else {
+        // Mock response for when no API key
+        bellaResponse = "I'd love to help you with that! However, I need an API key to provide personalized assistance. For now, I can help with general coding tips and problem-solving strategies. What specific aspect of the problem would you like to discuss?";
+      }
+      
+      // Add Bella's response to chat history
+      setChatHistory([...newChatHistory, { type: 'bella', message: bellaResponse }]);
+      setBellaEmotion('happy');
+      
+    } catch (error) {
+      console.error('Chat error:', error);
+      const errorResponse = "Sorry, I'm having trouble responding right now. Please try again later!";
+      setChatHistory([...newChatHistory, { type: 'bella', message: errorResponse }]);
+      setBellaEmotion('sad');
+    } finally {
+      setBellaIsTalking(false);
+    }
+  };
+
   const handleNextStory = () => {
     navigate('/story', { state: { topic, choice, completed: true } });
   };
@@ -623,7 +690,6 @@ public:
   if (loading) {
     return (
       <div className="problem-screen">
-        <Avatar name="Bella" emotion="thinking" isTalking={false} />
         <div className="problem-container">
           <div className="loading-message">
             <h2>Loading problem...</h2>
@@ -637,7 +703,6 @@ public:
   if (error) {
     return (
       <div className="problem-screen">
-        <Avatar name="Bella" emotion="sad" isTalking={false} />
         <div className="problem-container">
           <div className="error-message">
             <h2>Error loading problem</h2>
@@ -651,42 +716,43 @@ public:
 
   // Add error boundary for the main render
   try {
+    console.log('Rendering ProblemScreen with state:', { 
+      topic, choice, loading, error, problemData, chatBoxOpen 
+    });
+
+    // Show loading state
+    if (loading) {
+      return (
+        <div className="problem-screen">
+          <div className="problem-container">
+            <div className="loading-message">
+              <h2>Loading problem...</h2>
+              <p>Please wait while we fetch the problem data.</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Show error state
+    if (error) {
+      return (
+        <div className="problem-screen">
+          <div className="problem-container">
+            <div className="error-message">
+              <h2>Error loading problem</h2>
+              <p>{error}</p>
+              <button onClick={() => window.location.reload()}>Retry</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
   return (
     <div className="problem-screen">
-      <div className="problem-container">
-        <div className="avatar-section">
-          <Avatar name="Bella" emotion={bellaEmotion} isTalking={bellaIsTalking} />
-          
-          {/* Speech Bubble */}
-          {speechBubble.visible && speechBubble.messages.length > 0 && (
-            <div className="speech-bubble">
-              <div className="speech-bubble-content">
-                {speechBubble.messages[currentMessageIndex]?.isCode ? (
-                  <pre className="speech-code">
-                    <code>{speechBubble.messages[currentMessageIndex]?.text}</code>
-                  </pre>
-                ) : (
-                  <p>{speechBubble.messages[currentMessageIndex]?.text}</p>
-                )}
-              </div>
-              <div className="speech-bubble-arrow"></div>
-            </div>
-          )}
-          
-          {/* API Key Input (small and discrete) */}
-          <div className="api-key-section">
-            <input
-              type="password"
-              placeholder="OpenAI API Key (optional)"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="api-key-input"
-            />
-          </div>
-        </div>
-        
-        <div className="problem-header">
+        <div className="problem-container">
+          <div className="problem-header">
           <div className="problem-title-section">
             <h1>{displayProblem.title}</h1>
             <span className={`difficulty ${displayProblem.difficulty.toLowerCase()}`}>
@@ -700,7 +766,7 @@ public:
         </div>
 
         <div className="problem-content">
-          <div className="problem-layout">
+          <div className={`problem-layout ${chatBoxOpen ? 'three-panel' : 'two-panel'}`}>
             <div className="problem-left">
               <div className="problem-description">
                 <h3>Problem Description</h3>
@@ -735,7 +801,8 @@ public:
               )}
             </div>
 
-            <div className="problem-right">
+            <div className="problem-center">
+              <div className="coding-section">
               <div className="code-editor">
                 <div className="editor-header">
                   <h3>Your Solution</h3>
@@ -767,37 +834,19 @@ public:
                       readOnly: false,
                       cursorStyle: 'line',
                       automaticLayout: true,
-                      mouseWheelZoom: true,
-                      contextmenu: true,
-                      folding: true,
-                      foldingStrategy: 'indentation',
-                      showFoldingControls: 'always',
-                      unfoldOnClickAfterEnd: false,
-                      lineDecorationsWidth: 0,
-                      lineNumbersMinChars: 3,
-                      glyphMargin: false,
-                      renderLineHighlight: 'all',
-                      renderWhitespace: 'selection',
-                      scrollbar: {
-                        vertical: 'auto',
-                        horizontal: 'auto',
-                        useShadows: false,
-                        verticalHasArrows: true,
-                        horizontalHasArrows: true,
-                        verticalScrollbarSize: 17,
-                        horizontalScrollbarSize: 17,
-                        arrowSize: 30
-                      }
+                      fontSize: 14,
+                      tabSize: 4,
+                      insertSpaces: true,
+                      wordWrap: 'on'
                     }}
                   />
                 </div>
                 <div className="editor-actions">
                   <button 
-                    className="run-button"
-                    onClick={handleExecuteCode}
-                    disabled={executing || isSolved}
+                    className="help-button"
+                    onClick={() => setChatBoxOpen(!chatBoxOpen)}
                   >
-                    {executing ? 'Running...' : 'Run Code'}
+                    {chatBoxOpen ? 'Close Help' : 'Get Help'}
                   </button>
                   <button 
                     className="solve-button"
@@ -865,7 +914,97 @@ public:
                   </div>
                 </div>
               )}
+              </div>
             </div>
+
+            {/* Bella Chat Box - Only shown when chatBoxOpen is true */}
+            {chatBoxOpen && (
+              <div className="problem-right">
+                <div className="bella-chat-section">
+                  <div className="bella-chat-header">
+                    <div className="bella-avatar-large">
+                      <Avatar name="Bella" emotion={bellaEmotion} isTalking={bellaIsTalking} />
+                    </div>
+                    <button 
+                      className="bella-review-button"
+                      onClick={startBellaReview}
+                      disabled={bellaIsTalking}
+                    >
+                      {bellaIsTalking ? 'Bella is thinking...' : 'Code Review'}
+                    </button>
+                  </div>
+                  
+                  <div className="bella-chat-container">
+                    {/* Chat History */}
+                    <div className="chat-history">
+                      {chatHistory.length === 0 && !speechBubble.visible && (
+                        <div className="bella-welcome">
+                          <div className="bella-avatar">
+                            <span className="bella-emotion neutral">🤖</span>
+                          </div>
+                          <div className="bella-text">
+                            <p>Hi! I'm Bella, your coding assistant. Ask me anything about the problem or click "Get Code Review" for feedback!</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {chatHistory.map((chat, index) => (
+                        <div key={index} className={`chat-message ${chat.type}`}>
+                          {chat.type === 'bella' && (
+                            <div className="bella-avatar">
+                              <span className={`bella-emotion ${bellaEmotion}`}>🤖</span>
+                            </div>
+                          )}
+                          <div className="chat-text">
+                            <p>{chat.message}</p>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {speechBubble.visible && (
+                        <div className="bella-message">
+                          <div className="bella-avatar">
+                            <span className={`bella-emotion ${bellaEmotion}`}>🤖</span>
+                          </div>
+                          <div className="bella-text">
+                            <p>{speechBubble.messages[currentMessageIndex]?.text}</p>
+                            {currentMessageIndex < speechBubble.messages.length - 1 && (
+                              <button 
+                                className="next-message-button"
+                                onClick={nextMessage}
+                              >
+                                Next →
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Chat Input */}
+                    <form onSubmit={handleChatSubmit} className="chat-input-form">
+                      <div className="chat-input-container">
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          placeholder="Ask Bella anything about the problem..."
+                          className="chat-input"
+                          disabled={bellaIsTalking}
+                        />
+                        <button 
+                          type="submit" 
+                          className="chat-send-button"
+                          disabled={bellaIsTalking || !chatInput.trim()}
+                        >
+                          {bellaIsTalking ? '...' : 'Send'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -875,7 +1014,6 @@ public:
     console.error('Error rendering ProblemScreen:', renderError);
     return (
       <div className="problem-screen">
-        <Avatar name="Bella" emotion="sad" isTalking={false} />
         <div className="problem-container">
           <div className="error-message">
             <h2>Error rendering problem screen</h2>
