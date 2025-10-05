@@ -5,9 +5,9 @@
   margin-bottom: 2rem;
 }
 
-.avatar {
-  width: 80px;
-  height: 80px;
+.bella-face-container {
+  width: 120px;
+  height: 120px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 50%;
   display: flex;
@@ -15,38 +15,38 @@
   justify-content: center;
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   margin-bottom: 0.5rem;
+  padding: 10px;
 }
 
-.avatar-face {
-  width: 50px;
-  height: 50px;
-  position: relative;
-}
-
-.avatar-eyes {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 12px;
-}
-
-.eye {
-  width: 8px;
-  height: 8px;
-  background: white;
+.bella-face {
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-}
-
-.avatar-smile {
-  width: 20px;
-  height: 10px;
-  border: 2px solid white;
-  border-top: none;
-  border-radius: 0 0 20px 20px;
-  margin: 8px auto 0;
 }
 
 .avatar-name {
   color: #e2e8f0;
   font-size: 1rem;
   font-weight: 600;
+}
+
+/* Remove old avatar styles */
+.avatar {
+  display: none;
+}
+
+.avatar-face {
+  display: none;
+}
+
+.avatar-eyes {
+  display: none;
+}
+
+.eye {
+  display: none;
+}
+
+.avatar-smile {
+  display: none;
 }
