@@ -115,15 +115,15 @@ You can return the answer in any order.`,
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-4',
+          model: 'gpt-4o-mini',
           messages: [{
             role: 'system',
-            content: 'You are Bella, a friendly code reviewer. Analyze the LeetCode solution and explain what is wrong in 3-5 simple, short chunks. Each chunk should be 1-2 sentences. Be encouraging but point out issues clearly. Format code snippets on separate lines.'
+            content: 'You are Bella, a friendly code reviewer. Analyze the LeetCode solution and explain what is wrong in 3-5 simple, short chunks. Each chunk should be 1-2 sentences. Be encouraging but point out issues clearly. If it is completely off track, point it out. Format code snippets on separate lines. Do not repeat yourself.'
           }, {
             role: 'user',
             content: codeToReview
           }],
-          temperature: 0.7
+          temperature: 0.4
         })
       });
       
