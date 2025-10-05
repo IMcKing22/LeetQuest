@@ -500,9 +500,11 @@ def get_default_test_cases(problem_slug, problem_title=None):
 app = Flask(__name__)
 
 # Configure CORS (allow requests from React frontend)
-CORS(app, resources={
-    r"/api/*": {
-        "origins": [
+allowed_origins = os.getenv('BACKEND_ALLOWED_ORIGINS')
+if allowed_origins:
+    origins_list = [o.strip() for o in allowed_origins.split(',') if o.strip()]
+else:
+    origins_list = [
             "http://localhost:5173",
             "http://localhost:5174",
             "http://localhost:5175",
@@ -512,6 +514,9 @@ CORS(app, resources={
             "http://127.0.0.1:5175",
             "http://127.0.0.1:5176"
         ]
+CORS(app, resources={
+    r"/api/*": {
+        "origins": origins_list
     }
 })
 

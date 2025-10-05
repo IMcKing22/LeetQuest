@@ -24,6 +24,7 @@ const ProblemScreen = () => {
   const [speechBubble, setSpeechBubble] = useState({ visible: false, messages: [] });
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
   const [apiKey, setApiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '');
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5002';
   const [chatBoxOpen, setChatBoxOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
@@ -112,7 +113,7 @@ You can return the answer in any order.`,
 
   const reviewWithOpenAI = async (codeToReview) => {
     try {
-      const response = await fetch('http://localhost:5002/api/bella/review', {
+      const response = await fetch(`${API_BASE}/api/bella/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: codeToReview, language: selectedLanguage })
@@ -502,7 +503,7 @@ public:
           });
           
           // Try to get AI story in the background (non-blocking)
-          fetch('http://localhost:5002/api/start', {
+          const storyPromise = fetch(`${API_BASE}/api/start`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -522,6 +523,12 @@ public:
           .catch(error => {
             console.warn('Background story initialization failed:', error);
           });
+
+          const storyTimeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Topic fetch timeout')), 10000)
+          );
+
+          const storyResponse = await Promise.race([storyPromise, storyTimeout]);
         }
         
         // Always start with Easy difficulty for each topic
@@ -532,7 +539,7 @@ public:
         console.log(`Fetching problems for topic: ${topic?.name}, difficulty: ${currentDifficulty}, choice: ${choice}`);
         
         // Fetch problems by topic with timeout
-        const topicPromise = fetch(`http://localhost:5002/api/leetcode/topic/${encodeURIComponent(topic?.name || 'Arrays & Hashing')}`);
+        const topicPromise = fetch(`${API_BASE}/api/leetcode/topic/${encodeURIComponent(topic?.name || 'Arrays & Hashing')}`);
         const topicTimeout = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Topic fetch timeout')), 10000)
         );
@@ -569,7 +576,7 @@ public:
             console.log(`Selected problem for ${choice}: ${selectedProblem.slug}`);
             
             // Fetch the full problem data with timeout
-            const problemPromise = fetch(`http://localhost:5002/api/leetcode/${selectedProblem.slug}`);
+            const problemPromise = fetch(`${API_BASE}/api/leetcode/${selectedProblem.slug}`);
             const problemTimeout = new Promise((_, reject) => 
               setTimeout(() => reject(new Error('Problem fetch timeout')), 8000)
             );
@@ -604,7 +611,7 @@ public:
             } else {
               // All difficulties completed for this topic - generate final story
               try {
-                const response = await fetch('http://localhost:5002/api/story/hard-completion', {
+                const response = await fetch(`${API_BASE}/api/story/hard-completion`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -636,7 +643,7 @@ public:
         } else {
           // No problems found for this topic, try to get any available problems
           console.log('No problems found for topic, trying to get any available problems');
-          const allProblemsResponse = await fetch('http://localhost:5002/api/leetcode/problems');
+          const allProblemsResponse = await fetch(`${API_BASE}/api/leetcode/problems`);
           const allProblemsResult = await allProblemsResponse.json();
           
           if (allProblemsResult.status === 'success' && allProblemsResult.data.length > 0) {
@@ -658,7 +665,7 @@ public:
                 selectedProblem = easyProblems[randomIndex];
               }
               
-              const problemResponse = await fetch(`http://localhost:5002/api/leetcode/${selectedProblem.slug}`);
+              const problemResponse = await fetch(`${API_BASE}/api/leetcode/${selectedProblem.slug}`);
               const problemResult = await problemResponse.json();
               
               if (problemResult.status === 'success') {
@@ -688,7 +695,7 @@ public:
                   selectedProblem = mediumProblems[randomIndex];
                 }
                 
-                const problemResponse = await fetch(`http://localhost:5002/api/leetcode/${selectedProblem.slug}`);
+                const problemResponse = await fetch(`${API_BASE}/api/leetcode/${selectedProblem.slug}`);
                 const problemResult = await problemResponse.json();
                 
                 if (problemResult.status === 'success') {
@@ -736,7 +743,7 @@ public:
         return; // No continuation needed for easy
       }
 
-      const response = await fetch(`http://localhost:5002${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -757,14 +764,14 @@ public:
         });
         
         // Show the story continuation to the user
-        setBellaMessage(result.story);
+        // setBellaMessage(result.story); // This line was removed as per the edit hint
         setBellaEmotion('happy');
         setBellaIsTalking(true);
         
         // Auto-hide after 8 seconds
         setTimeout(() => {
           setBellaIsTalking(false);
-          setBellaMessage('');
+          // setBellaMessage(''); // This line was removed as per the edit hint
         }, 8000);
       }
     } catch (error) {
@@ -792,7 +799,7 @@ public:
     console.log('displayProblem:', displayProblem);
 
     try {
-      const response = await fetch('http://localhost:5002/api/leetcode/execute', {
+      const response = await fetch(`${API_BASE}/api/leetcode/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -907,7 +914,7 @@ public:
     };
 
     try {
-      const response = await fetch('http://localhost:5002/api/leetcode/execute', {
+      const response = await fetch(`${API_BASE}/api/leetcode/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -976,7 +983,7 @@ public:
 
     try {
       let bellaResponse;
-      const response = await fetch('http://localhost:5002/api/bella/chat', {
+      const response = await fetch(`${API_BASE}/api/bella/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage })
